@@ -30,9 +30,6 @@ import { set } from "mongoose";
 import { useRouter } from "next/navigation";
 import { Router } from "next/router";
 import { useEffect, useState } from "react";
-import { db } from "../../firebase";
-import DeleteIcon from "@mui/icons-material/Delete";
-import EditIcon from "@mui/icons-material/Edit";
 
 export default function Flashcards() {
     const { isLoaded, isSignedIn, user } = useUser();
