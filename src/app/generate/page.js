@@ -27,7 +27,7 @@ import {
 } from "@mui/material";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { db } from "../../firebase";
+
 
 export default function Generate() {
     const [flashcards, setFlashcards] = useState([]);
