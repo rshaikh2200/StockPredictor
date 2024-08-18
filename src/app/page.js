@@ -5,9 +5,6 @@ import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
 import Box from '@mui/material/Box';
 import Grid from '@mui/material/Grid';
-import SignedOut from './SignedOut';
-import SignedIn from './SignedIn';
-import UserButton from './UserButton';
 
 const Page = () => {
   const handleSubmit = async () => {
@@ -43,17 +40,6 @@ const Page = () => {
           <Typography variant="h6" sx={{ flexGrow: 1 }}>
             Flashcard SaaS
           </Typography>
-          <SignedOut>
-            <Button color="inherit" href="/sign-in">
-              Login
-            </Button>
-            <Button color="inherit" href="/sign-up">
-              Sign Up
-            </Button>
-          </SignedOut>
-          <SignedIn>
-            <UserButton />
-          </SignedIn>
         </Toolbar>
       </AppBar>
 
