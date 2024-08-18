@@ -87,7 +87,6 @@ export default function Home() {
                     Welcome to Flashcard SaaS
                 </Typography>
                 <Typography variant="h5" gutterBottom>
-                    {" "}
                     The easiest way to make flashcards from your text
                 </Typography>
                 <Button
@@ -109,9 +108,8 @@ export default function Home() {
                             Easy Text Input
                         </Typography>
                         <Typography>
-                            {" "}
-                            Simply input your text and let our software do the
-                            rest. Creating flashcards has never been easier
+                            Simply input your text and let our software do the rest.
+                            Creating flashcards has never been easier
                         </Typography>
                     </Grid>
                     <Grid item xs={12} md={4}>
@@ -119,7 +117,6 @@ export default function Home() {
                             Smart Flashcards
                         </Typography>
                         <Typography>
-                            {" "}
                             Our AI intelligently breaks down your text into
                             concise flashcards, perfect for studying.
                         </Typography>
@@ -129,7 +126,6 @@ export default function Home() {
                             Accessible Anywhere
                         </Typography>
                         <Typography>
-                            {" "}
                             Access your flashcards from any device, at any time.
                             Study on the go with ease
                         </Typography>
@@ -157,9 +153,7 @@ export default function Home() {
                                 $5 / month
                             </Typography>
                             <Typography>
-                                {" "}
-                                Access to basic flashcard features and limited
-                                storage.
+                                Access to basic flashcard features and limited storage.
                             </Typography>
                             <Button
                                 variant="contained"
@@ -187,9 +181,7 @@ export default function Home() {
                                 $10 / month
                             </Typography>
                             <Typography>
-                                {" "}
-                                Unlimited flashcard features and storage, with
-                                priority support.
+                                Unlimited flashcard features and storage, with priority support.
                             </Typography>
                             <Button
                                 variant="contained"
