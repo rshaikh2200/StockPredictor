@@ -9,6 +9,7 @@ import {
     writeBatch,
     setDoc,
 } from "@firebase/firestore";
+import { firestore } from '@/firebase';  // Fixed import syntax
 import {
     Box,
     Button,
@@ -22,14 +23,17 @@ import {
     DialogContentText,
     DialogTitle,
     Grid,
-    Paper,
     TextField,
     Typography,
 } from "@mui/material";
-import { set } from "mongoose";
+// Removed unnecessary mongoose import
 import { useRouter } from "next/navigation";
-import { Router } from "next/router";
 import { useEffect, useState } from "react";
+import EditIcon from '@mui/icons-material/Edit';  // Added missing imports
+import DeleteIcon from '@mui/icons-material/Delete';
+
+// Initialize Firestore
+const db = firestore;
 
 export default function Flashcards() {
     const { isLoaded, isSignedIn, user } = useUser();
@@ -54,6 +58,7 @@ export default function Flashcards() {
         }
         getFlashcards();
     }, [user]);
+
     const handleDelete = async (flashcardName) => {
         const updatedFlashcards = flashcards.filter(
             (flashcard) => flashcard.name !== flashcardName,
@@ -140,7 +145,6 @@ export default function Flashcards() {
         );
 
         const oldSubColRef = collection(userDocRef, oldName);
-
         const newSubColRef = collection(userDocRef, newName);
 
         async function copyAndDeleteOldSubCollection() {
