@@ -8,8 +8,8 @@ import {
     getDocs,
     writeBatch,
     setDoc,
-} from "@firebase/firestore";
-import { firestore } from '@/firebase';  // Fixed import syntax
+} from "firebase/firestore";
+import { db } from '@/firebase';  // Corrected import
 import {
     Box,
     Button,
@@ -26,14 +26,13 @@ import {
     TextField,
     Typography,
 } from "@mui/material";
-// Removed unnecessary mongoose import
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import EditIcon from '@mui/icons-material/Edit';  // Added missing imports
+import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 
 // Initialize Firestore
-const db = firestore;
+// `db` is already initialized in firebase.js and imported here
 
 export default function Flashcards() {
     const { isLoaded, isSignedIn, user } = useUser();
