@@ -25,13 +25,12 @@ import {
     Grid,
     TextField,
     Typography,
+    IconButton,
 } from "@mui/material";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
-
-
 
 export default function Flashcards() {
     const { isLoaded, isSignedIn, user } = useUser();
@@ -180,7 +179,7 @@ export default function Flashcards() {
             <Grid container spacing={2}>
                 {flashcards.map((flashcard, index) => (
                     <Grid item key={index} xs={12} sm={6} md={4}>
-                        <Card sx={{ display: "flex" }}>
+                        <Card sx={{ display: "flex", alignItems: "center" }}>
                             <CardActionArea
                                 onClick={() => handleCardClick(flashcard.name)}
                             >
@@ -190,16 +189,12 @@ export default function Flashcards() {
                                     </Typography>
                                 </CardContent>
                             </CardActionArea>
-                            <Button>
-                                <EditIcon
-                                    onClick={() => handleOpen(flashcard.name)}
-                                />
-                            </Button>
-                            <Button>
-                                <DeleteIcon
-                                    onClick={() => handleDelete(flashcard.name)}
-                                />
-                            </Button>
+                            <IconButton onClick={() => handleOpen(flashcard.name)}>
+                                <EditIcon />
+                            </IconButton>
+                            <IconButton onClick={() => handleDelete(flashcard.name)}>
+                                <DeleteIcon />
+                            </IconButton>
                         </Card>
                     </Grid>
                 ))}
