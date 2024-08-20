@@ -25,7 +25,7 @@ const systemPrompt = `You are a flashcard creator, tasked with generating educat
 
 export async function POST(req) {
     const groq = new Groq({
-        apiKey: process.env.API_KEY,
+        apiKey: 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
     });
     const data = await req.text();
 
