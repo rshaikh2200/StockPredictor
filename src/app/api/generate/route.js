@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { NextResponse } from 'next/server'
 import OpenAI from 'openai'
 
 const systemPrompt = `You are a flashcard creator, tasked with generating educational flashcards on various subjects. Your main responsibilities include:
@@ -49,7 +48,7 @@ Instructions: Use the provided content to generate flashcards. Ensure that each 
             { role: 'system', content: systemPrompt },
             { role: 'user', content: data },
           ],
-          model: 'gpt-4o',
+          model: 'gpt-3.5-turbo',
           response_format: { type: 'json_object' },
         })
       

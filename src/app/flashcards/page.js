@@ -42,19 +42,18 @@ export default function Flashcards() {
 
     useEffect(() => {
         async function getFlashcards() {
-            if (!user) return;
-            const docRef = doc(db, "users", user.id);
-            const docSnap = await getDoc(docRef);
-
-            if (docSnap.exists()) {
-                const collections = docSnap.data().flashcards || [];
-                setFlashcards(collections);
-            } else {
-                await setDoc(docRef, { flashcards: [] });
-            }
+          if (!user) return
+          const docRef = doc(collection(db, 'users'), user.id)
+          const docSnap = await getDoc(docRef)
+          if (docSnap.exists()) {
+            const collections = docSnap.data().flashcards || []
+            setFlashcards(collections)
+          } else {
+            await setDoc(docRef, { flashcards: [] })
+          }
         }
-        getFlashcards();
-    }, [user]);
+        getFlashcards()
+      }, [user])
 
     const handleDelete = async (flashcardName) => {
         const updatedFlashcards = flashcards.filter(
