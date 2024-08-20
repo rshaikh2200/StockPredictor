@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import OpenAI from "openai";
-import Groq from "groq-sdk";
+import { NextResponse } from 'next/server'
+import OpenAI from 'openai'
 
 const systemPrompt = `You are a flashcard creator, tasked with generating educational flashcards on various subjects. Your main responsibilities include:
     1. Clarity: Provide clear, straightforward explanations. Use simple language unless the subject requires complexity.
@@ -38,45 +38,24 @@ Instructions: Use the provided content to generate flashcards. Ensure that each 
             }
         ]
     }
-    `;
+    `
 
     export async function POST(req) {
-        const data = await req.text();
-    
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${process.env.GEMINI_API_KEY}`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                contents: [{
-                    parts: [{
-                        text: `${systemPrompt}\n\n${data}`
-                    }]
-                }]
-            }),
-        });
-    
-        if (!response.ok) {
-            const errorData = await response.json();
-            console.error('Error:', errorData);
-            throw new Error('Failed to generate flashcards');
-        }
-    
-        const result = await response.json();
-       
-    
+        const openai = new OpenAI()
+        const data = await req.text()
       
-        const content = result.candidates[0]?.content?.parts[0]?.text || '';
-        const cleanedText = content.replace(/```json\n|\n```/g, '');
-    
-        let flashcards;
-        try {
-            flashcards = JSON.parse(cleanedText);
-        } catch (error) {
-            console.error('Error parsing JSON:', error);
-            flashcards = { flashcards: [] };
-        }
-    
-        return NextResponse.json(flashcards);
-    }
+        const completion = await openai.chat.completions.create({
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: data },
+          ],
+          model: 'gpt-4o',
+          response_format: { type: 'json_object' },
+        })
+      
+        // Parse the JSON response from the OpenAI API
+        const flashcards = JSON.parse(completion.choices[0].message.content)
+      
+        // Return the flashcards as a JSON response
+        return NextResponse.json(flashcards.flashcards)
+      }
