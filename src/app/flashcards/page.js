@@ -9,7 +9,7 @@ import {
     writeBatch,
     setDoc,
 } from "firebase/firestore";
-import { db } from '@/firebase';  // Corrected import
+import { db } from "../../firebase";  
 import {
     Box,
     Button,
@@ -31,8 +31,7 @@ import { useEffect, useState } from "react";
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 
-// Initialize Firestore
-// `db` is already initialized in firebase.js and imported here
+
 
 export default function Flashcards() {
     const { isLoaded, isSignedIn, user } = useUser();
