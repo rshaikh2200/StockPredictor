@@ -1,4 +1,4 @@
-'use client'
+"use client";
 import { useUser } from "@clerk/nextjs";
 import { collection, doc, getDoc, getDocs, writeBatch, setDoc } from "@firebase/firestore";
 import {
