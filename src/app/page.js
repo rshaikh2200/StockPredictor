@@ -1,7 +1,6 @@
 "use client";
 
 import React from 'react';
-import Image from "next/image";
 import getStripe from "@/utils/get-stripe";
 import { SignedIn, SignedOut, UserButton } from "@clerk/nextjs";
 import {
@@ -9,7 +8,6 @@ import {
     Box,
     Button,
     Container,
-    Grid,
     Toolbar,
     Typography,
 } from "@mui/material";
@@ -91,57 +89,8 @@ const HomePage = () => {
           mt: 4,
         }}
       >
-        {/* Floating Icons */}
-        <Box
-          sx={{
-            display: "flex",
-            flexDirection: "row",
-            gap: { xs: 2, sm: 4, md: 6 },
-            mb: 4,
-          }}
-        >
-          {icons.map((icon, index) => (
-            <Box
-              key={index}
-              width={isSmallScreen ? 60 : 130}
-              height={isSmallScreen ? 60 : 130}
-              sx={{
-                borderRadius: "50%",
-                borderColor: "white",
-                borderWidth: 2,
-                borderStyle: "solid",
-                overflow: "hidden",
-                position: "relative",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                animation: `float ${
-                  2 + index * 0.5
-                }s ease-in-out infinite alternate`, //animation named float, duration is 2 to 3.5 seconds based on index of icon
-                "@keyframes float": {
-                  "0%": {
-                    transform: "translateY(-10px)", // Move up 10px
-                  },
-                  "100%": {
-                    transform: "translateY(10px)", // Move down 10px
-                  },
-                },
-              }}
-            >
-              <Image
-                src={icon.src}
-                alt={icon.alt}
-                width={isSmallScreen ? 30 : 100}
-                height={isSmallScreen ? 30 : 100}
-                style={{ objectFit: "cover" }}
-              />
-            </Box>
-          ))}
-        </Box>
-
-        {/* Main Content */}
         <Typography
-          variant={isSmallScreen ? "h3" : "h2"}
+          variant="h3"
           align="center"
           color="secondary.main"
           sx={{
@@ -157,7 +106,7 @@ const HomePage = () => {
           FlashUI
         </Typography>
         <Typography
-          variant={isSmallScreen ? "h6" : "h4"}
+          variant="h6"
           align="center"
           color="tertiary.main"
         >
@@ -175,7 +124,7 @@ const HomePage = () => {
         {/* Features */}
         <Features />
 
-        {/* Pricing*/}
+        {/* Pricing */}
         <Container
           maxWidth="md"
           sx={{
@@ -196,7 +145,7 @@ const HomePage = () => {
           <Box
             sx={{
               display: "flex",
-              flexDirection: isSmallScreen ? "column" : "row",
+              flexDirection: "column",
               justifyContent: "space-between",
             }}
           >
@@ -222,26 +171,6 @@ const HomePage = () => {
               >
                 Get Started
               </Button>
-            </Box>
-
-            <Box
-              width={isSmallScreen ? 100 : 130}
-              height={isSmallScreen ? 100 : 130}
-              sx={{
-                overflow: "hidden",
-                position: "relative",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Image
-                src={dollarIcon}
-                alt={"price"}
-                width={isSmallScreen ? 80 : 100}
-                height={isSmallScreen ? 80 : 100}
-                style={{ objectFit: "cover" }}
-              />
             </Box>
           </Box>
         </Container>
