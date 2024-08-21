@@ -3,17 +3,21 @@
 import React, { useState, useEffect } from 'react';
 import { useUser } from "@clerk/nextjs";
 import { Container, Typography, Box, Button, CircularProgress } from "@mui/material";
-import { useRouter } from "next/router";
 import getStripe from "@/utils/get-stripe";
 
 const MembershipPage = () => {
     const { user } = useUser();
-    const router = useRouter();
     const [loading, setLoading] = useState(true);
     const [membership, setMembership] = useState(null);
     const [error, setError] = useState(null);
+    const [routerLoaded, setRouterLoaded] = useState(false);
 
     useEffect(() => {
+        // Ensures that the component is client-side only
+        if (typeof window !== 'undefined') {
+            setRouterLoaded(true);
+        }
+
         const fetchMembership = async () => {
             try {
                 const res = await fetch('/api/membership-status');
@@ -36,6 +40,8 @@ const MembershipPage = () => {
     }, []);
 
     const handleSelectMembership = async (tier) => {
+        if (!routerLoaded) return;
+
         if (tier === 'premium') {
             try {
                 const checkoutSession = await fetch('/api/checkout_sessions', {
