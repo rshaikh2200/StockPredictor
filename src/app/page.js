@@ -26,7 +26,7 @@ const Navbar = ({ rightContent }) => (
   </AppBar>
 );
 
-// Define DefaultRightContent component (if necessary)
+// Define DefaultRightContent component
 const DefaultRightContent = () => (
   <Box sx={{ display: 'flex', alignItems: 'center' }}>
     <SignedIn>
@@ -38,6 +38,29 @@ const DefaultRightContent = () => (
       </Button>
     </SignedOut>
   </Box>
+);
+
+// Define Features component
+const Features = () => (
+  <Container sx={{ mt: 8 }}>
+    <Typography variant="h4" align="center" gutterBottom>
+      Features
+    </Typography>
+    <Box sx={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      <Box>
+        <Typography variant="h6">Feature 1</Typography>
+        <Typography variant="body1">Description of feature 1.</Typography>
+      </Box>
+      <Box>
+        <Typography variant="h6">Feature 2</Typography>
+        <Typography variant="body1">Description of feature 2.</Typography>
+      </Box>
+      <Box>
+        <Typography variant="h6">Feature 3</Typography>
+        <Typography variant="body1">Description of feature 3.</Typography>
+      </Box>
+    </Box>
+  </Container>
 );
 
 const HomePage = () => {
