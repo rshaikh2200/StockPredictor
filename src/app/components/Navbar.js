@@ -8,8 +8,8 @@ import {
   Button,
   useTheme,
   useMediaQuery,
-  Link,
 } from "@mui/material";
+import Link from "next/link";
 import { SignedIn, SignedOut, UserButton } from "@clerk/nextjs";
 
 export default function Navbar({ rightContent }) {
@@ -43,7 +43,6 @@ export default function Navbar({ rightContent }) {
             display: "flex",
             flexDirection: "row",
             justifyContent: "space-between",
-
             alignItems: "center",
           }}
         >
@@ -77,9 +76,9 @@ export function DefaultRightContent() {
           }}
         >
           <Button size={isSmallScreen ? "small" : "large"}>Team</Button>
-          <Button size={isSmallScreen ? "small" : "large"} href="/sign-in">
-            Sign In
-          </Button>
+          <Link href="/sign-in" passHref>
+            <Button size={isSmallScreen ? "small" : "large"}>Sign In</Button>
+          </Link>
         </Box>
       </SignedOut>
       <SignedIn>
@@ -103,12 +102,12 @@ export function HomeRightContent() {
             gap: { xs: 1, sm: 2, md: 4 },
           }}
         >
-          <Button size={isSmallScreen ? "small" : "large"} href="/generate">
-            Generate
-          </Button>
-          <Button size={isSmallScreen ? "small" : "large"} href="/flashcards">
-            Flashcards
-          </Button>
+          <Link href="/generate" passHref>
+            <Button size={isSmallScreen ? "small" : "large"}>Generate</Button>
+          </Link>
+          <Link href="/flashcards" passHref>
+            <Button size={isSmallScreen ? "small" : "large"}>Flashcards</Button>
+          </Link>
           <UserButton />
         </Box>
       </SignedIn>

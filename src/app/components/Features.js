@@ -68,7 +68,9 @@ import {
                     <Typography gutterBottom variant="h5" component="h2">
                       {feature.title}
                     </Typography>
-                    <Typography color="white">{feature.description}</Typography>
+                    <Typography color="text.primary">
+                      {feature.description}
+                    </Typography>
                   </CardContent>
                 </Card>
               </Grid>
@@ -78,3 +80,4 @@ import {
       </Box>
     );
   }
+  
