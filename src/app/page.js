@@ -16,7 +16,31 @@ import {
 import Head from "next/head";
 import Link from "next/link";
 
-// Ensure all necessary props or hooks (like useMediaQuery) are defined or imported
+// Define Navbar component
+const Navbar = ({ rightContent }) => (
+  <AppBar position="static">
+    <Toolbar>
+      <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
+        Flashcards Saas
+      </Typography>
+      {rightContent}
+    </Toolbar>
+  </AppBar>
+);
+
+// Define DefaultRightContent component (if necessary)
+const DefaultRightContent = () => (
+  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+    <SignedIn>
+      <UserButton />
+    </SignedIn>
+    <SignedOut>
+      <Button color="inherit" component={Link} href="/sign-in">
+        Sign In
+      </Button>
+    </SignedOut>
+  </Box>
+);
 
 const HomePage = () => {
   const handleSubmit = async () => {
@@ -226,5 +250,4 @@ const HomePage = () => {
   );
 }
 
-// Ensure this export is correct
 export default HomePage;
