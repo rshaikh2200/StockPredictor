@@ -1,6 +1,6 @@
 "use client";
 
-import React from 'react';
+import React, { useState } from 'react';
 import getStripe from "@/utils/get-stripe";
 import { SignedIn, SignedOut, UserButton } from "@clerk/nextjs";
 import {
@@ -10,60 +10,19 @@ import {
     Container,
     Toolbar,
     Typography,
+    useMediaQuery,
+    useTheme,
 } from "@mui/material";
 import Head from "next/head";
 import Link from "next/link";
-
-// Define Navbar component
-const Navbar = ({ rightContent }) => (
-  <AppBar position="static">
-    <Toolbar>
-      <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-        Flashcards Saas
-      </Typography>
-      {rightContent}
-    </Toolbar>
-  </AppBar>
-);
-
-// Define DefaultRightContent component
-const DefaultRightContent = () => (
-  <Box sx={{ display: 'flex', alignItems: 'center' }}>
-    <SignedIn>
-      <UserButton />
-    </SignedIn>
-    <SignedOut>
-      <Button color="inherit" component={Link} href="/sign-in">
-        Sign In
-      </Button>
-    </SignedOut>
-  </Box>
-);
-
-// Define Features component
-const Features = () => (
-  <Container sx={{ mt: 8 }}>
-    <Typography variant="h4" align="center" gutterBottom>
-      Features
-    </Typography>
-    <Box sx={{ display: "flex", flexDirection: "column", gap: 4 }}>
-      <Box>
-        <Typography variant="h6">Feature 1</Typography>
-        <Typography variant="body1">Description of feature 1.</Typography>
-      </Box>
-      <Box>
-        <Typography variant="h6">Feature 2</Typography>
-        <Typography variant="body1">Description of feature 2.</Typography>
-      </Box>
-      <Box>
-        <Typography variant="h6">Feature 3</Typography>
-        <Typography variant="body1">Description of feature 3.</Typography>
-      </Box>
-    </Box>
-  </Container>
-);
+import DefaultRightContent from "./components/DefaultRightContent"; // Ensure this import is correct
+import Navbar from "./components/Navbar";
+import Features from "./components/Features";
 
 const HomePage = () => {
+  const theme = useTheme();
+  const isSmallScreen = useMediaQuery(theme.breakpoints.down('sm'));
+
   const handleSubmit = async () => {
     try {
       const checkoutSession = await fetch('/api/checkout_sessions', {
@@ -112,8 +71,9 @@ const HomePage = () => {
           mt: 4,
         }}
       >
+        {/* Main Content */}
         <Typography
-          variant="h3"
+          variant={isSmallScreen ? "h3" : "h2"}
           align="center"
           color="secondary.main"
           sx={{
@@ -129,7 +89,7 @@ const HomePage = () => {
           FlashUI
         </Typography>
         <Typography
-          variant="h6"
+          variant={isSmallScreen ? "h6" : "h4"}
           align="center"
           color="tertiary.main"
         >
@@ -168,7 +128,7 @@ const HomePage = () => {
           <Box
             sx={{
               display: "flex",
-              flexDirection: "column",
+              flexDirection: isSmallScreen ? "column" : "row",
               justifyContent: "space-between",
             }}
           >
