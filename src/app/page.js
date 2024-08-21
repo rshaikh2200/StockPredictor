@@ -49,6 +49,9 @@ const HomePage = () => {
           <Typography variant="h6" sx={{ flexGrow: 1 }}>
             Flashcard SaaS
           </Typography>
+          <Button color="inherit" href="/membership">
+            Membership
+          </Button>
           <SignedIn>
             <UserButton />
           </SignedIn>
