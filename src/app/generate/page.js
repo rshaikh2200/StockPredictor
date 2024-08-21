@@ -243,4 +243,134 @@ export default function Generate() {
                                                             {flashcard.back}
                                                         </Typography>
                                                     </CardContent>
-         
+                                                </CardActionArea>
+                                                <IconButton
+                                                    onClick={() => handleSaveCard(index)}
+                                                    sx={{ position: 'absolute', top: 8, right: 8 }}
+                                                >
+                                                    {savedCards.includes(flashcard) ? <Bookmark /> : <BookmarkBorder />}
+                                                </IconButton>
+                                            </Card>
+                                        </Grid>
+                                    ))}
+                                </Grid>
+                            ) : (
+                                <Typography variant="body1" color="white">
+                                    No flashcards available. Generate some to preview.
+                                </Typography>
+                            )}
+                        </Box>
+                    )}
+
+                    {selectedTab === 1 && (
+                        <Box sx={{ p: 3 }}>
+                            {savedCards.length > 0 ? (
+                                <Grid container spacing={2}>
+                                    {savedCards.map((flashcard, index) => (
+                                        <Grid item xs={12} sm={6} md={4} key={index}>
+                                            <Card
+                                                sx={{
+                                                    height: 250,
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    borderRadius: 4,
+                                                    background: '#0044cc',
+                                                    boxShadow: '0 4px 8px rgba(0, 0, 0, 0.1), 0 6px 20px rgba(0, 0, 0, 0.1)',
+                                                    transition: 'transform 0.3s ease',
+                                                    '&:hover': {
+                                                        transform: 'scale(1.05)',
+                                                    },
+                                                }}
+                                            >
+                                                <CardActionArea>
+                                                    <CardContent>
+                                                        <Typography variant="h6" component="div" color="white">
+                                                            {flashcard.front}
+                                                        </Typography>
+                                                        <Typography variant="body2" color="white">
+                                                            {flashcard.back}
+                                                        </Typography>
+                                                    </CardContent>
+                                                </CardActionArea>
+                                                <IconButton
+                                                    onClick={() => handleDeleteCard(index)}
+                                                    sx={{ position: 'absolute', top: 8, right: 8 }}
+                                                >
+                                                    <Delete />
+                                                </IconButton>
+                                            </Card>
+                                        </Grid>
+                                    ))}
+                                </Grid>
+                            ) : (
+                                <Typography variant="body1" color="white">
+                                    No saved flashcards yet.
+                                </Typography>
+                            )}
+                        </Box>
+                    )}
+                </Box>
+
+                <Button
+                    variant="outlined"
+                    sx={{
+                        borderRadius: 2,
+                        borderColor: '#4a90e2',
+                        color: '#4a90e2',
+                        '&:hover': {
+                            borderColor: '#357abd',
+                            color: '#357abd',
+                        },
+                        mt: 4,
+                    }}
+                    onClick={handleOpen}
+                >
+                    Save Flashcards
+                </Button>
+
+                <Dialog open={open} onClose={handleClose}>
+                    <DialogTitle>Save Flashcards</DialogTitle>
+                    <DialogContent>
+                        <DialogContentText>
+                            Enter a name for your flashcard collection.
+                        </DialogContentText>
+                        <TextField
+                            autoFocus
+                            margin="dense"
+                            label="Collection Name"
+                            type="text"
+                            fullWidth
+                            variant="outlined"
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            sx={{
+                                '& .MuiOutlinedInput-root': {
+                                    '& fieldset': {
+                                        borderColor: 'grey.800',
+                                    },
+                                    '&:hover fieldset': {
+                                        borderColor: 'grey.800',
+                                    },
+                                    '&.Mui-focused fieldset': {
+                                        borderColor: '#4a90e2',
+                                    },
+                                },
+                                '& .MuiInputLabel-root': {
+                                    color: 'white',
+                                    '&.Mui-focused': {
+                                        color: '#4a90e2',
+                                    },
+                                },
+                            }}
+                        />
+                    </DialogContent>
+                    <DialogActions>
+                        <Button onClick={handleClose}>Cancel</Button>
+                        <Button onClick={saveFlashCards}>Save</Button>
+                    </DialogActions>
+                </Dialog>
+            </Container>
+        </Box>
+    );
+}
