@@ -97,9 +97,9 @@ export default function Generate() {
     };
 
     return (
-        <Container maxWidth="md">
+        <Container maxWidth="md" className="bg-white p-8 rounded-lg shadow-lg">
             <Box sx={{ my: 4 }}>
-                <Typography variant="h4" component="h1" gutterBottom>
+                <Typography variant="h4" component="h1" gutterBottom className="text-center text-indigo-600">
                     Generate Flashcards
                 </Typography>
                 <TextField
@@ -110,13 +110,14 @@ export default function Generate() {
                     multiline
                     rows={4}
                     variant="outlined"
-                    sx={{ mb: 2 }}
+                    className="mb-4"
                 />
                 <Button
                     variant="contained"
                     color="primary"
                     onClick={handleSubmit}
                     fullWidth
+                    className="bg-indigo-600 hover:bg-indigo-700"
                 >
                     Generate Flashcards
                 </Button>
@@ -124,17 +125,17 @@ export default function Generate() {
 
             {flashcards.length > 0 && (
                 <Box sx={{ mt: 4 }}>
-                    <Typography variant="h5" component="h2" gutterBottom>
+                    <Typography variant="h5" component="h2" gutterBottom className="text-center text-indigo-600">
                         Generated Flashcards
                     </Typography>
                     <Grid container spacing={2}>
                         {flashcards.map((flashcard, index) => (
                             <Grid item xs={12} sm={6} md={4} key={index}>
-                                <Card>
+                                <Card className="bg-gray-100 border-l-4 border-indigo-600">
                                     <CardContent>
-                                        <Typography variant="h6">Front:</Typography>
+                                        <Typography variant="h6" className="text-indigo-600">Front:</Typography>
                                         <Typography>{flashcard.front}</Typography>
-                                        <Typography variant="h6" sx={{ mt: 2 }}>Back:</Typography>
+                                        <Typography variant="h6" className="text-indigo-600 mt-2">Back:</Typography>
                                         <Typography>{flashcard.back}</Typography>
                                     </CardContent>
                                 </Card>
@@ -142,7 +143,12 @@ export default function Generate() {
                         ))}
                     </Grid>
                     <Box sx={{ mt: 4, display: 'flex', justifyContent: 'center' }}>
-                        <Button variant="contained" color="primary" onClick={handleOpenDialog}>
+                        <Button 
+                            variant="contained" 
+                            color="primary" 
+                            onClick={handleOpenDialog} 
+                            className="bg-indigo-600 hover:bg-indigo-700"
+                        >
                             Save Flashcards
                         </Button>
                     </Box>
@@ -150,7 +156,7 @@ export default function Generate() {
             )}
 
             <Dialog open={dialogOpen} onClose={handleCloseDialog}>
-                <DialogTitle>Save Flashcard Set</DialogTitle>
+                <DialogTitle className="text-indigo-600">Save Flashcard Set</DialogTitle>
                 <DialogContent>
                     <DialogContentText>
                         Please enter a name for your flashcard set.
@@ -163,11 +169,12 @@ export default function Generate() {
                         fullWidth
                         value={setName}
                         onChange={(e) => setSetName(e.target.value)}
+                        className="mt-2"
                     />
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={handleCloseDialog}>Cancel</Button>
-                    <Button onClick={saveFlashcards} color="primary">
+                    <Button onClick={handleCloseDialog} className="text-indigo-600">Cancel</Button>
+                    <Button onClick={saveFlashcards} color="primary" className="bg-indigo-600 hover:bg-indigo-700">
                         Save
                     </Button>
                 </DialogActions>
