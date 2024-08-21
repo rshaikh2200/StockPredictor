@@ -16,6 +16,8 @@ import {
 import Head from "next/head";
 import Link from "next/link";
 
+// Ensure all necessary props or hooks (like useMediaQuery) are defined or imported
+
 const HomePage = () => {
   const handleSubmit = async () => {
     try {
@@ -223,3 +225,6 @@ const HomePage = () => {
     </Box>
   );
 }
+
+// Ensure this export is correct
+export default HomePage;
