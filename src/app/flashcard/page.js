@@ -22,7 +22,6 @@ import {
 import { useSearchParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { db } from "../../firebase";
-import { set } from "mongoose";
 
 export default function Flashcard() {
     const { isLoaded, isSignedIn, user } = useUser();
