@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@clerk/nextjs';
 import {
-    IconButton, Container, Box, AppBar, Toolbar, Link, Typography, Button, Grid, Card, CardActionArea, CardContent,
+    IconButton, Container, Box,AppBar,Toolbar,Link, Typography, Button, Grid, Card, CardActionArea, CardContent,
     Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, TextField, Tabs, Tab
 } from '@mui/material';
 import { doc, collection, writeBatch, getDoc } from 'firebase/firestore';
@@ -23,7 +23,7 @@ export default function Generate() {
     const [savedCards, setSavedCards] = useState([]);
     const { isLoaded, isSignedIn, user } = useUser();
     const [flashcards, setFlashcards] = useState([]);
-    const [flipped, setFlipped] = useState({});
+    const [flipped, setFlipped] = useState([]);
     const [open, setOpen] = useState(false);
     const [name, setName] = useState('');
     const [text, setText] = useState('');
@@ -40,7 +40,7 @@ export default function Generate() {
             });
             if (!response.ok) throw new Error('Network response was not ok');
             const data = await response.json();
-            setFlashcards(data.slice(0, 12)); // Generate 12 flashcards
+            setFlashcards(data);
             setPreviewShown(true);
         } catch (error) {
             console.error('There was a problem with the fetch operation:', error);
@@ -98,16 +98,16 @@ export default function Generate() {
                 }
             }}
         >
-            <AppBar position="static" sx={{ backgroundColor: '#000000' }}>
-                <Toolbar>
-                    <Button href="/" sx={{ color: '#ffffff', display: 'flex', alignItems: 'center' }}>
-                        <HomeIcon fontSize="large" sx={{ mr: 1 }} />
-                        <Typography variant="h6" component="div">
-                            Home
-                        </Typography>
-                    </Button>
-                </Toolbar>
-            </AppBar>
+          <AppBar position="static" sx={{ backgroundColor: '#000000' }}>
+      <Toolbar>
+        <Button href="/" sx={{ color: '#ffffff', display: 'flex', alignItems: 'center' }}>
+          <HomeIcon fontSize="large" sx={{ mr: 1 }} />
+          <Typography variant="h6" component="div">
+            Home
+          </Typography>
+        </Button>
+      </Toolbar>
+    </AppBar>
             <Container maxWidth="md">
                 <Box sx={{ mb: 6, textAlign: 'center' }}>
                     <Typography variant="h4" sx={{ paddingTop: 4, fontWeight: 'bold' }} gutterBottom>
@@ -202,46 +202,22 @@ export default function Generate() {
                                                     borderRadius: 4,
                                                     background: gradients[index % gradients.length],
                                                     boxShadow: '0 4px 8px rgba(0, 0, 0, 0.1), 0 6px 20px rgba(0, 0, 0, 0.1)',
-                                                    transition: 'transform 0.6s ease',
-                                                    transformStyle: 'preserve-3d',
-                                                    transform: flipped[index] ? 'rotateY(180deg)' : 'rotateY(0deg)',
-                                                    perspective: 1000,
+                                                    transition: 'transform 0.3s ease',
+                                                    '&:hover': {
+                                                        transform: 'scale(1.05)',
+                                                    },
                                                 }}
                                             >
-                                                <CardActionArea
-                                                    onClick={() => handleCardClick(index)}
-                                                    sx={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                                                >
-                                                    <CardContent
-                                                        sx={{
-                                                            width: '100%',
-                                                            height: '100%',
-                                                            display: 'flex',
-                                                            alignItems: 'center',
-                                                            justifyContent: 'center',
-                                                            backfaceVisibility: 'hidden',
-                                                            position: 'absolute',
-                                                        }}
-                                                    >
+                                                <CardActionArea onClick={() => handleCardClick(index)}>
+                                                    <CardContent>
                                                         <Typography variant="h6" component="div" color="white">
                                                             {flashcard.front}
                                                         </Typography>
-                                                    </CardContent>
-                                                    <CardContent
-                                                        sx={{
-                                                            width: '100%',
-                                                            height: '100%',
-                                                            display: 'flex',
-                                                            alignItems: 'center',
-                                                            justifyContent: 'center',
-                                                            backfaceVisibility: 'hidden',
-                                                            transform: 'rotateY(180deg)',
-                                                            position: 'absolute',
-                                                        }}
-                                                    >
-                                                        <Typography variant="body2" color="white">
-                                                            {flashcard.back}
-                                                        </Typography>
+                                                        {flipped[index] && (
+                                                            <Typography variant="body2" color="white">
+                                                                {flashcard.back}
+                                                            </Typography>
+                                                        )}
                                                     </CardContent>
                                                 </CardActionArea>
                                                 <IconButton
