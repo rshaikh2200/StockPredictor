@@ -1,17 +1,22 @@
 "use client";
 
-import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { useUser } from '@clerk/nextjs'
-import { Container, Grid, Card, CardActionArea, CardContent, Typography, Box } from '@mui/material'
-import { collection, doc, getDoc, setDoc } from 'firebase/firestore'
-import { db } from '../../firebase'
+import { db } from "../firebase";
+import { useUser } from "@clerk/nextjs";
+import { Box, Container, Grid, Paper, Typography } from "@mui/material";
+import { collection, doc, getDocs } from "firebase/firestore";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
 import Appbar from "../components/Appbar";
+import FlipCard from "../components/FlipCard";
 
-const Page = () => {
+export default function Flashcard() {
   const router = useRouter();
   const { isLoaded, isSignedIn, user } = useUser();
   const [flashcards, setFlashcards] = useState([]);
+
+  const searchParams = useSearchParams();
+  const search = searchParams.get("id");
 
   useEffect(() => {
     if (isLoaded) {
@@ -22,33 +27,28 @@ const Page = () => {
   }, [isLoaded, router, user]);
 
   useEffect(() => {
-    async function getFlashcards() {
-      if (!user) return;
-      const docRef = doc(collection(db, "users"), user.id);
-      const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) {
-        const flashcards = docSnap.data().flashcards || [];
-        setFlashcards(flashcards);
-      } else {
-        await setDoc(docRef, { flashcards: [] });
-      }
+    async function getFlashcard() {
+      if (!search || !user) return;
+
+      const colRef = collection(doc(collection(db, "users"), user.id), search);
+      const docs = await getDocs(colRef);
+      const flashcards = [];
+      docs.forEach((doc) => {
+        flashcards.push({ id: doc.id, ...doc.data() });
+      });
+      setFlashcards(flashcards);
     }
-    getFlashcards();
-  }, [user]);
+    getFlashcard();
+  }, [search, user]);
 
-  const handleClick = (id) => {
-    router.push(`/flashcard?id=${id}`);
-  };
-
-  if (!isLoaded && !isSignedIn) return <Loader></Loader>;
   return (
     <Box>
       <Appbar />
       <Container maxWidth="md">
         <Typography variant="h2" sx={{ my: 4 }}>
-          My Flashcards
+          {search}
         </Typography>
-        {flashcards.length === 0 ? (
+        {flashcards.length === 0 && (
           <Paper
             sx={{
               p: 4,
@@ -57,39 +57,21 @@ const Page = () => {
             }}
           >
             <Typography variant="p" component="div">
-              You don&apos;t have any flashcards yet. <br /> To create one, go
-              to the <Link href="/generate">Create Flashcard</Link> page.
+              You don&apos;t have any flashcards of {search}. <br /> To create
+              one, go to the <Link href="/generate">Create Flashcard</Link> page.{" "}
+              <br /> To view the flashcards, go to the{" "}
+              <Link href="/flashcards">My Flashcards</Link> page.
             </Typography>
           </Paper>
-        ) : (
-          <Grid
-            container
-            columnSpacing={2}
-            rowSpacing={1}
-            sx={{ mt: 4, minHeight: "12rem" }}
-          >
-            {flashcards.map((flashcard, index) => (
-              <Grid item xs={12} sm={6} md={4} key={index}>
-                <Card>
-                  <CardActionArea onClick={() => handleClick(flashcard.name)}>
-                    <CardContent>
-                      <Typography variant="h5" component="div">
-                        {flashcard.name}
-                      </Typography>
-                    </CardContent>
-                  </CardActionArea>
-                </Card>
-              </Grid>
-            ))}
-          </Grid>
         )}
+        <Grid container spacing={3} my={4}>
+          {flashcards.map((flashcard, index) => (
+            <Grid item xs={12} sm={6} md={4} key={index}>
+              <FlipCard flashcard={flashcard} index={index} />
+            </Grid>
+          ))}
+        </Grid>
       </Container>
-      <br />
-      <br />
-      <br />
-      <Footer />
     </Box>
   );
-};
-
-export default Page;
+}

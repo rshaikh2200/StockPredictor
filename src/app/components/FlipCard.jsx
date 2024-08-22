@@ -2,6 +2,7 @@ import { Box } from "@mui/material";
 import { styled } from "@mui/system";
 import anime from "animejs";
 import { useState } from "react";
+import theme from "../theme";
 
 const CardContainer = styled(Box)({
   height: "220px",
@@ -24,14 +25,14 @@ const Front = styled(Box)({
   alignItems: "center",
   width: "100%",
   height: "100%",
+  color: theme.palette.tangaroa[950],
+  backgroundColor: theme.palette.tangaroa[200],
   borderRadius: "10px",
   backfaceVisibility: "hidden",
   position: "absolute",
   fontSize: "1rem",
   fontWeight: 500,
   padding: "1rem",
-  backgroundColor: "#E0E0E0", // Replace with your desired color
-  color: "#000000", // Replace with your desired color
 });
 
 const Back = styled(Box)({
@@ -42,6 +43,9 @@ const Back = styled(Box)({
   height: "100%",
   borderRadius: "10px",
   backfaceVisibility: "hidden",
+  color: theme.palette.text.secondary,
+  backgroundColor: theme.palette.tangaroa[500],
+  textShadow: "1px 2px 3px rgba(0, 0, 0, 0.2)",
   position: "absolute",
   top: 0,
   left: 0,
@@ -49,9 +53,6 @@ const Back = styled(Box)({
   fontWeight: 500,
   padding: "1rem",
   transform: "rotateY(180deg)",
-  backgroundColor: "#B0B0B0", // Replace with your desired color
-  color: "#FFFFFF", // Replace with your desired color
-  textShadow: "1px 2px 3px rgba(0, 0, 0, 0.2)",
 });
 
 const FlipCard = ({ flashcard, index }) => {
