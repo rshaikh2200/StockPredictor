@@ -6,6 +6,7 @@ import { useUser } from '@clerk/nextjs'
 import { Container, Grid, Card, CardActionArea, CardContent, Typography, Box } from '@mui/material'
 import { collection, doc, getDoc, setDoc } from 'firebase/firestore'
 import { db } from '../../firebase'
+import Appbar from "../components/Appbar";
 
 export default function Flashcard() {
   const { isLoaded, isSignedIn, user } = useUser()
