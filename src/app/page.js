@@ -5,7 +5,7 @@ import Image from "next/image";
 import getStripe from "@/utils/get-stripe";
 import { Container, Box, Button, Grid, Typography } from "@mui/material";
 import Head from "next/head";
-import Appbar from "./components/Appbar";
+import Appbar from "@/components/Appbar"; // Assuming you place the Appbar component in the components folder
 
 const HomePage = () => {
   const handleSubmit = async () => {

@@ -1,77 +1,63 @@
-"use client";
+'use client'
 
-import { db } from "../firebase";
-import { useUser } from "@clerk/nextjs";
-import { Box, Container, Grid, Paper, Typography } from "@mui/material";
-import { collection, doc, getDocs } from "firebase/firestore";
-import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
-import Appbar from "../components/Appbar";
-import FlipCard from "../components/FlipCard";
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { useUser } from '@clerk/nextjs'
+import { Container, Grid, Card, CardActionArea, CardContent, Typography, Box } from '@mui/material'
+import { collection, doc, getDoc, setDoc } from 'firebase/firestore'
+import { db } from '../../firebase'
 
 export default function Flashcard() {
-  const router = useRouter();
-  const { isLoaded, isSignedIn, user } = useUser();
-  const [flashcards, setFlashcards] = useState([]);
-
-  const searchParams = useSearchParams();
-  const search = searchParams.get("id");
+  const { isLoaded, isSignedIn, user } = useUser()
+  const [flashcards, setFlashcards] = useState([])
+  const router = useRouter()
 
   useEffect(() => {
-    if (isLoaded) {
-      if (!user) {
-        router.push("/sign-in");
+    async function getFlashcards() {
+      if (!user) return
+      const docRef = doc(collection(db, 'users'), user.id)
+      const docSnap = await getDoc(docRef)
+      if (docSnap.exists()) {
+        const collections = docSnap.data().flashcards || []
+        setFlashcards(collections)
+      } else {
+        await setDoc(docRef, { flashcards: [] })
       }
     }
-  }, [isLoaded, router, user]);
-
-  useEffect(() => {
-    async function getFlashcard() {
-      if (!search || !user) return;
-
-      const colRef = collection(doc(collection(db, "users"), user.id), search);
-      const docs = await getDocs(colRef);
-      const flashcards = [];
-      docs.forEach((doc) => {
-        flashcards.push({ id: doc.id, ...doc.data() });
-      });
-      setFlashcards(flashcards);
-    }
-    getFlashcard();
-  }, [search, user]);
+    getFlashcards()
+  }, [user])
 
   return (
-    <Box>
-      <Appbar />
-      <Container maxWidth="md">
-        <Typography variant="h2" sx={{ my: 4 }}>
-          {search}
-        </Typography>
-        {flashcards.length === 0 && (
-          <Paper
-            sx={{
-              p: 4,
-              align: "center",
-              backgroundColor: (theme) => theme.palette.tangaroa[200],
-            }}
-          >
-            <Typography variant="p" component="div">
-              You don&apos;t have any flashcards of {search}. <br /> To create
-              one, go to the <Link href="/generate">Create Flashcard</Link> page.{" "}
-              <br /> To view the flashcards, go to the{" "}
-              <Link href="/flashcards">My Flashcards</Link> page.
-            </Typography>
-          </Paper>
-        )}
-        <Grid container spacing={3} my={4}>
-          {flashcards.map((flashcard, index) => (
-            <Grid item xs={12} sm={6} md={4} key={index}>
-              <FlipCard flashcard={flashcard} index={index} />
-            </Grid>
-          ))}
-        </Grid>
-      </Container>
-    </Box>
-  );
+    <Container maxWidth="md">
+      <Grid container spacing={3} sx={{ mt: 4 }}>
+        {flashcards.map((flashcard) => (
+          <Grid item xs={12} sm={6} md={4} key={flashcard.id}>
+            <Card>
+              <CardActionArea onClick={() => handleCardClick(flashcard.id)}>
+                <CardContent>
+                  <Box sx={{ /* Styling for flip animation */ }}>
+                    <div>
+                      <div>
+                        <Typography variant="h5" component="div">
+                          {flashcard.front}
+                        </Typography>
+                      </div>
+                      <div>
+                        <Typography variant="h5" component="div">
+                          {flashcard.back}
+                        </Typography>
+                      </div>
+                    </div>
+                  </Box>
+                </CardContent>
+              </CardActionArea>
+            </Card>
+          </Grid>
+        ))}
+      </Grid>
+    </Container>
+  )  
+  const handleCardClick = (id) => {
+    router.push(`/flashcard?id=${id}`)
+  }
 }
