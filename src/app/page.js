@@ -6,6 +6,7 @@ import getStripe from "@/utils/get-stripe";
 import { Container, Box, Button, Grid, Typography } from "@mui/material";
 import Head from "next/head";
 import Appbar from "src/app/components/Appbar"; // Assuming you place the Appbar component in the components folder
+//rizwan
 
 const HomePage = () => {
   const handleSubmit = async () => {
