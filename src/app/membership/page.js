@@ -115,35 +115,61 @@ const MembershipPage = () => {
   return (
     <Container maxWidth="md" sx={{ textAlign: "center", marginTop: "10vh" }}>
       <Typography variant="h4" gutterBottom>
-        Choose Your Membership Plan
+        Your Membership Status
       </Typography>
-      <Grid container spacing={4} sx={{ mt: 4 }}>
-        <Grid item xs={12} md={6}>
-          <PricingCard
-            title="Free Tier"
-            price="$0.00/month"
-            features={[
-              "Create 10 Flashcards",
-              "Limited Storage Access",
-              "Basic Support",
-            ]}
-            onClick={() => handleSelectMembership("free")}
-          />
+      <Typography variant="h6" gutterBottom>
+        {membership?.tier === "premium"
+          ? "Premium Member"
+          : "Free Tier Member"}
+      </Typography>
+      <Typography variant="body1" gutterBottom>
+        Member since: {membership?.startDate}
+      </Typography>
+      <Box sx={{ my: 6 }}>
+        <Typography variant="h4" gutterBottom>
+          Upgrad Your Membership
+        </Typography>
+        <Grid container spacing={4} sx={{ mt: 4 }}>
+          <Grid item xs={12} md={6}>
+            <PricingCard
+              title="Free Tier"
+              price="$0.00/month"
+              features={[
+                "Create 10 Flashcards",
+                "Limited Storage Access",
+                "Basic Support",
+              ]}
+              onClick={() => handleSelectMembership("Free Tier")}
+            />
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <PricingCard
+              title="Gold Tier"
+              price="$10.00/month"
+              features={[
+                "Create Unlimited Flashcards",
+                "Full Storage Access",
+                "Priority Support",
+                "API Integration",
+              ]}
+              onClick={() => handleSelectMembership("Gold Tier")}
+            />
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <PricingCard
+              title="Platnium Tier"
+              price="$20.00/month"
+              features={[
+                "Create Unlimited Flashcards",
+                "Full Storage Access",
+                "Priority Support",
+                "API Integration",
+              ]}
+              onClick={() => handleSelectMembership("Platnium Tier")}
+            />
+          </Grid>
         </Grid>
-        <Grid item xs={12} md={6}>
-          <PricingCard
-            title="Premium Tier"
-            price="$10.00/month"
-            features={[
-              "Create Unlimited Flashcards",
-              "Full Storage Access",
-              "Priority Support",
-              "API Integration",
-            ]}
-            onClick={() => handleSelectMembership("premium")}
-          />
-        </Grid>
-      </Grid>
+      </Box>
     </Container>
   );
 };
