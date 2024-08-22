@@ -26,7 +26,6 @@ const theme = createTheme({
       700: "#0064ff",
       800: "#0059e4",
       900: "#003fb0",
-      950: "#001540",
     },
   },
   typography: {

@@ -1,4 +1,4 @@
-'use client';
+"use client";
 import { Bookmark, BookmarkBorder, Delete } from '@mui/icons-material';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
