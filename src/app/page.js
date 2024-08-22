@@ -3,18 +3,9 @@
 import React from 'react';
 import Image from "next/image";
 import getStripe from "@/utils/get-stripe";
-import { SignedIn, SignedOut, UserButton } from "@clerk/nextjs";
-import {
-    AppBar,
-    Box,
-    Button,
-    Container,
-    Grid,
-    Toolbar,
-    Typography,
-} from "@mui/material";
+import { Container, Box, Button, Grid, Typography } from "@mui/material";
 import Head from "next/head";
-import Link from "next/link";
+import Appbar from "@/components/Appbar"; // Assuming you place the Appbar component in the components folder
 
 const HomePage = () => {
   const handleSubmit = async () => {
@@ -44,24 +35,10 @@ const HomePage = () => {
       <Head>
         <title>Flashcard SaaS</title>
       </Head>
-      <AppBar position="static">
-        <Toolbar>
-          <Typography variant="h6" sx={{ flexGrow: 1 }}>
-            Flashcard SaaS
-          </Typography>
-          <Button color="inherit" href="/membership">
-            Membership
-          </Button>
-          <SignedIn>
-            <UserButton />
-          </SignedIn>
-          <SignedOut>
-            <Button color="inherit" href="/sign-in">
-              Sign In
-            </Button>
-          </SignedOut>
-        </Toolbar>
-      </AppBar>
+      
+      {/* Replaced the old AppBar with the new Appbar component */}
+      <Appbar />
+
       <Box sx={{ textAlign: 'center', my: 4 }}>
         <Typography variant="h2" component="h1" gutterBottom>
           Welcome to Flashcard SaaS
@@ -86,6 +63,7 @@ const HomePage = () => {
           Learn More
         </Button>
       </Box>
+      
       <Box sx={{ my: 6 }}>
         <Typography variant="h4" component="h2" gutterBottom>
           Features
@@ -94,6 +72,7 @@ const HomePage = () => {
           {/* Feature items go here */}
         </Grid>
       </Box>
+      
       <Box sx={{ my: 6, textAlign: 'center' }}>
         <Typography variant="h4" component="h2" gutterBottom>
           Pricing
