@@ -1,6 +1,6 @@
 "use client";
 
-import { db } from "../firebase.config";
+import { db } from "../firebase.js";
 import { useUser } from "@clerk/nextjs";
 import { Box, Container, Grid, Paper, Typography } from "@mui/material";
 import { collection, doc, getDocs } from "firebase/firestore";
