@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@aws-sdk/client-bedrock-agent-runtime": "^3.645.0",
     "@clerk/nextjs": "^5.3.1",
     "@emotion/react": "^11.13.0",
     "@emotion/styled": "^11.13.0",
@@ -19,6 +20,7 @@
     "dotenv": "^16.4.5",
     "firebase": "^10.13.0",
     "groq-sdk": "^0.5.0",
+    "import": "^0.0.6",
     "mongoose": "^8.5.3",
     "next": "14.2.5",
     "openai": "^4.56.0",
