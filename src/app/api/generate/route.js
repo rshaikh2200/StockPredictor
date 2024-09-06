@@ -27,7 +27,7 @@ export async function POST(req: Request): Promise<Response> {
     try {
         // Parse the request body
         const body = await req.json();
-        const { role, specialty, department } = body;  // Destructure without type annotations
+        const { role, specialty, department } = body;
         console.log(`Received role: ${role}, specialty: ${specialty}, department: ${department}`);
 
         if (!role || !specialty || !department) {
@@ -38,7 +38,7 @@ export async function POST(req: Request): Promise<Response> {
         }
 
         // Define the input for the RetrieveAndGenerateCommand
-        const input: any = {
+        const input = {  // Removed `: any`
             input: { text: `Role: ${role}, Specialty: ${specialty}, Department: ${department}` },
             retrieveAndGenerateConfiguration: {
                 type: "KNOWLEDGE_BASE",
@@ -47,7 +47,7 @@ export async function POST(req: Request): Promise<Response> {
                     modelArn: "anthropic.claude-3-haiku-20240307-v1:0", // Replace with your model ARN
                     retrievalConfiguration: {
                         vectorSearchConfiguration: {
-                            numberOfResults: 10, // Number of case studies to retrieve
+                            numberOfResults: 10,
                             overrideSearchType: "SEMANTIC"
                         }
                     },
@@ -59,7 +59,7 @@ export async function POST(req: Request): Promise<Response> {
                             textInferenceConfig: {
                                 temperature: 0.7,
                                 topP: 0.9,
-                                maxTokens: 2048 // Allow larger tokens to include multiple case studies and questions
+                                maxTokens: 2048
                             }
                         },
                     },
@@ -82,3 +82,16 @@ export async function POST(req: Request): Promise<Response> {
         const caseStudies = JSON.parse(response.output?.text || "No response from model");
 
         // Return the case studies and questions as a JSON response
+        return new Response(JSON.stringify(caseStudies), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+        });
+        
+    } catch (error) {
+        console.error(error);
+        return new Response(JSON.stringify({ error: "An error occurred" }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' }
+        });
+    }
+}
