@@ -5,11 +5,9 @@ import { Box, Paper, Typography, Button, Radio, RadioGroup, FormControlLabel, Fo
 import { createTheme, ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 
-
-
 export default function Home() {
   const [caseStudies, setCaseStudies] = useState([]);
-  
+
   useEffect(() => {
     // Fetch case studies from your API or static data
     async function fetchCaseStudies() {
@@ -27,7 +25,9 @@ export default function Home() {
   }, []);
 
   return (
-   
+    <ThemeProvider theme={createTheme()}>
+      <CssBaseline />
+      <Box sx={{ p: 2 }}>
         <Typography variant="h4" gutterBottom sx={{ color: 'text.primary' }}>
           Case Studies with Questions
         </Typography>
