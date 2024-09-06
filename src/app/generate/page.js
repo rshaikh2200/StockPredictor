@@ -1,109 +1,97 @@
-'use client';
+'use client'
 
-import React, { useState } from 'react';
-import { Button, Container, Typography, Box, Dialog, DialogActions, DialogContent, DialogTitle, TextField } from '@mui/material';
-import { useRouter } from 'next/navigation'; // Import the useRouter hook
-import Head from "next/head";
-import Appbar from "/src/app/components/Appbar.jsx"; // Assuming Appbar component exists here
+import { useState } from 'react'
+import {
+  Container,
+  TextField,
+  Button,
+  Typography,
+  Box,
+} from '@mui/material'
 
-export default function HomePage() {
-  // State to control the visibility of the dialog
-  const [open, setOpen] = useState(false);
+export default function Generate() {
+  const [role, setRole] = useState('')
+  const [specialty, setSpecialty] = useState('')
+  const [department, setDepartment] = useState('')
+  const [scenarios, setScenarios] = useState([])
 
-  // State to capture the form inputs
-  const [role, setRole] = useState('');
-  const [specialty, setSpecialty] = useState('');
-  const [department, setDepartment] = useState('');
+  const handleSubmit = async () => {
+    if (!role.trim() || !specialty.trim() || !department.trim()) {
+      alert('Please enter your role, specialty, and department to generate case studies.')
+      return
+    }
 
-  // Initialize the router
-  const router = useRouter();
+    try {
+      const response = await fetch('/api/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ role, specialty, department }),
+      })
 
-  // Function to handle opening the dialog
-  const handleOpen = () => {
-    setOpen(true);
-  };
+      if (!response.ok) {
+        throw new Error('Failed to generate case studies and questions.')
+      }
 
-  // Function to handle closing the dialog
-  const handleClose = () => {
-    setOpen(false);
-  };
-
-  // Function to handle form submission
-  const handleSubmit = () => {
-    // You can add your logic here to handle the form data
-    console.log('Role:', role);
-    console.log('Specialty:', specialty);
-    console.log('Department:', department);
-    
-    // Close the dialog after form submission
-    handleClose();
-    
-    // Redirect to the generate page
-    router.push('/generate/page.js'); // Redirects to the /generate/page.js route
-  };
+      const data = await response.json()
+      setScenarios(data.caseStudies)
+    } catch (error) {
+      console.error('Error generating case studies:', error)
+      alert('An error occurred while generating case studies. Please try again.')
+    }
+  }
 
   return (
-    <Container 
-      maxWidth="sm" 
-      sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100vh', justifyContent: 'center' }}
-    >
-      <Head>
-        <title>Welcome to Our Platform</title>
-      </Head>
-      
-      <Appbar /> {/* Assuming you have an Appbar component */}
-
-      <Box sx={{ textAlign: 'center', mb: 4 }}>
-        <Typography variant="h3" component="h1" gutterBottom>
-          Welcome to Our Platform
-        </Typography>
-        <Typography variant="subtitle1" gutterBottom>
-          Get started in testing your knowledge on handling critical workplace situations
-        </Typography>
+    <Container>
+      <Typography variant="h4" gutterBottom>
+        Generate Case Studies and Questions
+      </Typography>
+      <Box mb={2}>
+        <TextField
+          label="Role"
+          value={role}
+          onChange={(e) => setRole(e.target.value)}
+          fullWidth
+          margin="normal"
+        />
+        <TextField
+          label="Specialty"
+          value={specialty}
+          onChange={(e) => setSpecialty(e.target.value)}
+          fullWidth
+          margin="normal"
+        />
+        <TextField
+          label="Department"
+          value={department}
+          onChange={(e) => setDepartment(e.target.value)}
+          fullWidth
+          margin="normal"
+        />
       </Box>
+      <Button variant="contained" color="primary" onClick={handleSubmit}>
+        Generate Scenarios
+      </Button>
 
-      <Box sx={{ display: 'flex', gap: 2 }}>
-        <Button variant="contained" color="primary" size="large">
-          Sign In
-        </Button>
-        <Button variant="outlined" color="secondary" size="large" onClick={handleOpen}>
-          Get Started
-        </Button>
-      </Box>
-
-      {/* Dialog for Get Started Form */}
-      <Dialog open={open} onClose={handleClose}>
-        <DialogTitle>Enter Your Details</DialogTitle>
-        <DialogContent>
-          <Box component="form" sx={{ mt: 2 }}>
-            <TextField
-              label="Role"
-              fullWidth
-              margin="normal"
-              value={role}
-              onChange={(e) => setRole(e.target.value)}
-            />
-            <TextField
-              label="Specialty"
-              fullWidth
-              margin="normal"
-              value={specialty}
-              onChange={(e) => setSpecialty(e.target.value)}
-            />
-            <TextField
-              label="Department"
-              fullWidth
-              margin="normal"
-              value={department}
-              onChange={(e) => setDepartment(e.target.value)}
-            />
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleClose} color="secondary">Cancel</Button>
-          <Button onClick={handleSubmit} color="primary">Submit</Button>
-        </DialogActions>
-      </Dialog>
+      {scenarios.length > 0 && (
+        <Box mt={4}>
+          <Typography variant="h5">Generated Scenarios</Typography>
+          {scenarios.map((scenario, index) => (
+            <Box key={index} mb={3}>
+              <Typography variant="h6">Case Study {index + 1}</Typography>
+              <Typography variant="body1">{scenario.summary}</Typography>
+              <Typography variant="h6">Questions</Typography>
+              <ol>
+                {scenario.questions.map((question, qIndex) => (
+                  <li key={qIndex}>{question}</li>
+                ))}
+              </ol>
+            </Box>
+          ))}
+        </Box>
+      )}
     </Container>
-  );
+  )
 }
+
