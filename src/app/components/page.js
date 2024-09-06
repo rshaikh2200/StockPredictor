@@ -5,35 +5,7 @@ import { Box, Paper, Typography, Button, Radio, RadioGroup, FormControlLabel, Fo
 import { createTheme, ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 
-// Dark mode theme
-const darkTheme = createTheme({
-  palette: {
-    mode: 'dark',
-    primary: {
-      main: '#1A73E8',
-    },
-    secondary: {
-      main: '#9C27B0',
-    },
-    background: {
-      default: '#121212',
-      paper: '#1D1D1D',
-    },
-    text: {
-      primary: '#E0E0E0',
-      secondary: '#B0B0B0',
-    },
-  },
-  components: {
-    MuiPaper: {
-      styleOverrides: {
-        root: {
-          backgroundImage: 'none',
-        },
-      },
-    },
-  },
-});
+
 
 export default function Home() {
   const [caseStudies, setCaseStudies] = useState([]);
@@ -55,16 +27,7 @@ export default function Home() {
   }, []);
 
   return (
-    <ThemeProvider theme={darkTheme}>
-      <CssBaseline />
-      <Box
-        width="100vw"
-        height="100vh"
-        display="flex"
-        flexDirection="column"
-        alignItems="center"
-        p={3}
-      >
+   
         <Typography variant="h4" gutterBottom sx={{ color: 'text.primary' }}>
           Case Studies with Questions
         </Typography>
