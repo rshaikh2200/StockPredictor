@@ -26,7 +26,8 @@ export async function POST(req: Request): Promise<Response> {
 
     try {
         // Parse the request body
-        const { role, specialty, department }: { role: string; specialty: string; department: string } = await req.json();
+        const body = await req.json();
+        const { role, specialty, department } = body;  // Destructure without type annotations
         console.log(`Received role: ${role}, specialty: ${specialty}, department: ${department}`);
 
         if (!role || !specialty || !department) {
@@ -81,12 +82,3 @@ export async function POST(req: Request): Promise<Response> {
         const caseStudies = JSON.parse(response.output?.text || "No response from model");
 
         // Return the case studies and questions as a JSON response
-        return NextResponse.json(caseStudies);
-    } catch (err: any) {
-        console.log(`ERROR: Can't invoke Retrieve and Generate. Reason: ${err.message || err}`);
-        return new Response(JSON.stringify({ error: `Error invoking Retrieve and Generate: ${err.message || err}` }), {
-            status: 500,
-            headers: { 'Content-Type': 'application/json' },
-        });
-    }
-}

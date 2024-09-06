@@ -5,6 +5,7 @@ import { Button, Container, Typography, Box } from '@mui/material';
 import Head from "next/head";
 import Appbar from "@app/components/Appbar.jsx"; // Assuming Appbar component exists here
 
+
 export default function HomePage() {
   return (
     <Container 
@@ -16,7 +17,7 @@ export default function HomePage() {
           Welcome to Our Platform
         </Typography>
         <Typography variant="subtitle1" gutterBottom>
-          Join us to explore amazing opportunities tailored for you. Sign in or get started today!
+          Get started in testing your knowledge on handling critical workpace situation
         </Typography>
       </Box>
 
