@@ -9,7 +9,17 @@ import {
   LinearProgress,
 } from '@mui/material';
 
-export default function ResultPage({ caseStudies }) {
+// Define the structure of caseStudies
+interface CaseStudy {
+  summary: string;
+  questions: string[];
+}
+
+interface ResultPageProps {
+  caseStudies: CaseStudy[];
+}
+
+export default function ResultPage({ caseStudies }: ResultPageProps) {
   const [currentPage, setCurrentPage] = useState(0);
 
   const totalCaseStudies = caseStudies.length;
