@@ -13,6 +13,11 @@ import {
 function ResultPage({ caseStudies }) {
   const [currentPage, setCurrentPage] = useState(0);
 
+  // Safeguard against undefined or empty case studies
+  if (!caseStudies || caseStudies.length === 0) {
+    return <Typography variant="h6">No case studies available.</Typography>;
+  }
+
   const totalCaseStudies = caseStudies.length;
 
   const handleNext = () => {
@@ -89,4 +94,3 @@ ResultPage.propTypes = {
 };
 
 export default ResultPage;
-
