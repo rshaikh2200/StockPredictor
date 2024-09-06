@@ -5,6 +5,7 @@ import { Button, Container, Typography, Box } from '@mui/material';
 import Head from "next/head";
 import Appbar from "/src/app/components/Appbar.jsx"; // Assuming Appbar component exists here
 
+// hi
 
 export default function HomePage() {
   return (
