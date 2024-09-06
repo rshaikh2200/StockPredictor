@@ -20,7 +20,7 @@ Return the output in the following JSON format:
     ]
 }`;
 
-export async function POST(req: Request): Promise<Response> {
+export async function POST(req) {
     // Initialize the Bedrock Agent Runtime client
     const client = new BedrockAgentRuntimeClient({ region: "us-east-1" });
 
@@ -38,7 +38,7 @@ export async function POST(req: Request): Promise<Response> {
         }
 
         // Define the input for the RetrieveAndGenerateCommand
-        const input = {  // Removed `: any`
+        const input = {
             input: { text: `Role: ${role}, Specialty: ${specialty}, Department: ${department}` },
             retrieveAndGenerateConfiguration: {
                 type: "KNOWLEDGE_BASE",
