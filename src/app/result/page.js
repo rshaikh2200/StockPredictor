@@ -1,32 +1,32 @@
-'use client'
+'use client';
 
-import { useState } from 'react'
+import { useState } from 'react';
 import {
   Container,
   Typography,
   Box,
   Button,
   LinearProgress,
-} from '@mui/material'
+} from '@mui/material';
 
 export default function ResultPage({ caseStudies }) {
-  const [currentPage, setCurrentPage] = useState(0)
+  const [currentPage, setCurrentPage] = useState(0);
 
-  const totalCaseStudies = caseStudies.length
+  const totalCaseStudies = caseStudies.length;
 
   const handleNext = () => {
     if (currentPage < totalCaseStudies - 1) {
-      setCurrentPage(currentPage + 1)
+      setCurrentPage(currentPage + 1);
     }
-  }
+  };
 
   const handlePrevious = () => {
     if (currentPage > 0) {
-      setCurrentPage(currentPage - 1)
+      setCurrentPage(currentPage - 1);
     }
-  }
+  };
 
-  const completionPercentage = ((currentPage + 1) / totalCaseStudies) * 100
+  const completionPercentage = ((currentPage + 1) / totalCaseStudies) * 100;
 
   return (
     <Container>
@@ -75,5 +75,5 @@ export default function ResultPage({ caseStudies }) {
         </Button>
       </Box>
     </Container>
-  )
+  );
 }
