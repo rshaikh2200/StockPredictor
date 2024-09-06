@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import PropTypes from 'prop-types';
 import {
   Container,
   Typography,
@@ -9,17 +10,7 @@ import {
   LinearProgress,
 } from '@mui/material';
 
-// Define the structure of caseStudies
-interface CaseStudy {
-  summary: string;
-  questions: string[];
-}
-
-interface ResultPageProps {
-  caseStudies: CaseStudy[];
-}
-
-export default function ResultPage({ caseStudies }: ResultPageProps) {
+function ResultPage({ caseStudies }) {
   const [currentPage, setCurrentPage] = useState(0);
 
   const totalCaseStudies = caseStudies.length;
@@ -87,3 +78,15 @@ export default function ResultPage({ caseStudies }: ResultPageProps) {
     </Container>
   );
 }
+
+ResultPage.propTypes = {
+  caseStudies: PropTypes.arrayOf(
+    PropTypes.shape({
+      summary: PropTypes.string.isRequired,
+      questions: PropTypes.arrayOf(PropTypes.string).isRequired,
+    })
+  ).isRequired,
+};
+
+export default ResultPage;
+
