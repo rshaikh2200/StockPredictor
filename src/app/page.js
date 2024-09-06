@@ -6,85 +6,33 @@ import getStripe from "@/utils/get-stripe";
 import { Container, Box, Button, Grid, Typography } from "@mui/material";
 import Head from "next/head";
 import Appbar from "@/app/components/Appbar.jsx"; // Assuming you place the Appbar component in the components folder
-//rizwan
-//hi
-//hello
-const HomePage = () => {
-  const handleSubmit = async () => {
-    try {
-      const checkoutSession = await fetch('/api/checkout_sessions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
 
-      const checkoutSessionJson = await checkoutSession.json();
-  
-      const stripe = await getStripe();
-      const { error } = await stripe.redirectToCheckout({
-        sessionId: checkoutSessionJson.id,
-      });
-  
-      if (error) {
-        console.warn(error.message);
-      }
-    } catch (err) {
-      console.error('Error creating checkout session:', err);
-    }
-  };
+import React from 'react';
+import { Button, Container, Typography, Box } from '@mui/material';
 
+export default function HomePage() {
   return (
-    <Container>
-      <Head>
-        <title>Flashcard SaaS</title>
-      </Head>
-      
-      {/* Replaced the old AppBar with the new Appbar component */}
-      <Appbar />
+    <Container maxWidth="sm" sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100vh', justifyContent: 'center' }}>
+      <Box sx={{ textAlign: 'center', mb: 4 }}>
+        <Typography variant="h3" component="h1" gutterBottom>
+          Welcome to Our Platform
+        </Typography>
+        <Typography variant="subtitle1" gutterBottom>
+          Join us to explore amazing opportunities tailored for you. Sign in or get started today!
+        </Typography>
+      </Box>
 
-      <Box sx={{ textAlign: 'center', my: 4 }}>
-        <Typography variant="h2" component="h1" gutterBottom>
-          Welcome to Flashcard SaaS
-        </Typography>
-        <Typography variant="h5" component="h2" gutterBottom>
-          The easiest way to create flashcards from your text.
-        </Typography>
-        <Button 
-          variant="contained" 
-          color="primary" 
-          sx={{ mt: 2, mr: 2 }} 
-          href="/generate"
-        >
+      <Box sx={{ display: 'flex', gap: 2 }}>
+        <Button variant="contained" color="primary" size="large">
+          Sign In
+        </Button>
+        <Button variant="outlined" color="secondary" size="large">
           Get Started
         </Button>
-        <Button 
-          variant="outlined" 
-          color="primary" 
-          sx={{ mt: 2 }} 
-          onClick={handleSubmit}
-        >
-          Learn More
-        </Button>
-      </Box>
-      
-      <Box sx={{ my: 6 }}>
-        <Typography variant="h4" component="h2" gutterBottom>
-          Features
-        </Typography>
-        <Grid container spacing={4}>
-          {/* Feature items go here */}
-        </Grid>
-      </Box>
-      
-      <Box sx={{ my: 6, textAlign: 'center' }}>
-        <Typography variant="h4" component="h2" gutterBottom>
-          Pricing
-        </Typography>
-        <Grid container spacing={4} justifyContent="center">
-          {/* Pricing plans go here */}
-        </Grid>
       </Box>
     </Container>
   );
-};
+}
+
 
 export default HomePage;
