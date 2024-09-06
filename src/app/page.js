@@ -1,18 +1,16 @@
 "use client";
 
 import React from 'react';
-import Image from "next/image";
-import getStripe from "@/utils/get-stripe";
-import { Container, Box, Button, Grid, Typography } from "@mui/material";
-import Head from "next/head";
-import Appbar from "@/app/components/Appbar.jsx"; // Assuming you place the Appbar component in the components folder
-
-import React from 'react';
 import { Button, Container, Typography, Box } from '@mui/material';
+import Head from "next/head";
+import Appbar from "@/src/app/components/Appbar.jsx"; // Assuming Appbar component exists here
 
 export default function HomePage() {
   return (
-    <Container maxWidth="sm" sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100vh', justifyContent: 'center' }}>
+    <Container 
+      maxWidth="sm" 
+      sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100vh', justifyContent: 'center' }}
+    >
       <Box sx={{ textAlign: 'center', mb: 4 }}>
         <Typography variant="h3" component="h1" gutterBottom>
           Welcome to Our Platform
@@ -33,6 +31,3 @@ export default function HomePage() {
     </Container>
   );
 }
-
-
-export default HomePage;
