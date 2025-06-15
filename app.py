@@ -40,6 +40,7 @@ END_DATE = datetime.now().strftime("%Y-%m-%d")
 WINDOW = 20
 HORIZON = 20
 
+
 def get_sp500_tickers():
     """Return a list of S&P 500 tickers using the pytickersymbols package."""
     try:
@@ -50,7 +51,7 @@ def get_sp500_tickers():
     except Exception as e:
         print(f"Error fetching S&P 500 tickers: {e}")
         return sorted([
-            'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'META', 'NVDA', 'BRK-B', 
+            'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'META', 'NVDA', 'BRK-B',
             'JNJ', 'V', 'WMT', 'UNH', 'PG', 'HD', 'MA', 'BAC', 'ADBE', 'PFE',
             'DIS', 'NFLX', 'CRM', 'XOM', 'TMO', 'ABT', 'COST', 'CSCO', 'VZ',
             'INTC', 'CVX', 'CMCSA', 'DHR', 'ORCL', 'PEP', 'NKE', 'KO', 'ACN',
@@ -58,6 +59,7 @@ def get_sp500_tickers():
             'LOW', 'IBM', 'AMD', 'T', 'BMY', 'CAT', 'COP', 'UNP', 'GS', 'MS',
             'LMT', 'BA', 'SPGI', 'AMGN', 'BLK', 'SYK', 'AXP', 'MMM', 'MDLZ'
         ])
+
 
 def get_available_tickers():
     """Get list of tickers that either have trained models OR are in S&P 500."""
@@ -71,15 +73,17 @@ def get_available_tickers():
     all_tickers = list(dict.fromkeys(trained_tickers + sp500_tickers))
     return sorted(all_tickers)
 
+
 def assign_label_text(label_int):
     """Convert integer label to text description."""
     labels = {
         0: "Strong Down",
-        1: "Slight Down", 
+        1: "Slight Down",
         2: "Slight Up",
         3: "Strong Up"
     }
     return labels.get(label_int, "Unknown")
+
 
 def get_available_models():
     """Get list of tickers that have trained models."""
@@ -91,6 +95,7 @@ def get_available_models():
             tickers.append(ticker)
     return sorted(tickers)
 
+
 def load_best_model(ticker):
     """Load the best saved model for a ticker."""
     model_files = glob.glob(f'saved_models/{ticker}_model_epoch_*.keras')
@@ -98,6 +103,7 @@ def load_best_model(ticker):
         return None
     best_model_path = sorted(model_files)[-1]
     return load_model(best_model_path)
+
 
 def get_stock_data(ticker, days_back=500):
     """Fetch recent stock data for predictions."""
@@ -117,6 +123,7 @@ def get_stock_data(ticker, days_back=500):
         print(f"Error fetching data for {ticker}: {e}")
         return None
 
+
 def prepare_prediction_data(data):
     """Prepare data for model prediction."""
     close_prices = data['Close'].values.astype('float32').reshape(-1, 1)
@@ -128,6 +135,7 @@ def prepare_prediction_data(data):
     X = np.array([last_window])
     X = np.reshape(X, (X.shape[0], 1, WINDOW))
     return X, scaler, close_prices[-1][0]
+
 
 def make_predictions(model, X, scaler, current_price, days_list=[30, 60, 90, 120]):
     """Make price predictions for multiple time horizons."""
@@ -153,6 +161,7 @@ def make_predictions(model, X, scaler, current_price, days_list=[30, 60, 90, 120
     }
     return predictions
 
+
 def get_historical_comparison(ticker, days=60):
     """Get historical data for model vs actual comparison."""
     end_date = datetime.now()
@@ -171,10 +180,12 @@ def get_historical_comparison(ticker, days=60):
         print(f"Error fetching historical data for {ticker}: {e}")
         return None
 
+
 @app.route('/')
 def index():
     available_tickers = get_available_tickers()
     return render_template_string(HTML_TEMPLATE, tickers=available_tickers)
+
 
 @app.route('/predict/<ticker>')
 def predict_stock(ticker):
@@ -254,6 +265,7 @@ def predict_stock(ticker):
     except Exception as e:
         return jsonify({'error': str(e)})
 
+
 @app.route('/historical/<ticker>')
 def historical_comparison(ticker):
     try:
@@ -291,6 +303,7 @@ def historical_comparison(ticker):
     except Exception as e:
         return jsonify({'error': str(e)})
 
+
 @app.route('/prices/<ticker>')
 def prices(ticker):
     """Return actual closing prices for a given range of days."""
@@ -307,6 +320,7 @@ def prices(ticker):
         })
     except Exception as e:
         return jsonify({'error': str(e)})
+
 
 @app.route('/fundamentals/<ticker>')
 def fundamentals(ticker):
