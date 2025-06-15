@@ -1,0 +1,11 @@
+Flask
+numpy
+pandas
+yfinance
+tensorflow
+scikit-learn
+pytickersymbols
+plotly
+requests
+schedule
+gunicorn
