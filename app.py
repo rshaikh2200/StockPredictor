@@ -435,8 +435,8 @@ class StockNotificationSystem:
                             'current_price': predictions['current_price'],
                             'direction': predictions['direction']['label'],
                             'confidence': predictions['direction']['confidence'],
-                            '30_day_price': predictions['30_days']['price'],
-                            '30_day_change': predictions['30_days']['percent_change']
+                            '30_day_price': predictions['30_days'].price,
+                            '30_day_change': predictions['30_days'].percent_change
                         }
                         high_confidence_predictions.append(pred_data)
                 except Exception as e:
@@ -1159,10 +1159,10 @@ HTML_TEMPLATE = '''
                         <div id="actualControls">
                             <label for="actualRangeSelect">View Actual Price for:</label>
                             <select id="actualRangeSelect">
-                                <option value="7">1 Week</option>
+                                <option value="5">5 Days</option>
                                 <option value="30" selected>30 Days</option>
                                 <option value="90">90 Days</option>
-                                <option value="365">1 Year</option>
+                                <option value="100">100 Days</option>
                             </select>
                         </div>
                         <div id="actualChart"></div>
@@ -1195,12 +1195,12 @@ HTML_TEMPLATE = '''
                 
                 // Update ticker buttons with model indicators
                 tickerData.forEach(ticker => {
-                    const btn = document.querySelector([data-ticker="${ticker.ticker}"]);
+                    const btn = document.querySelector(`[data-ticker="${ticker.ticker}"]`);
                     if (btn && ticker.has_model) {
                         btn.classList.add('has-model');
-                        btn.title = ${ticker.ticker} - AI Model Available;
+                        btn.title = `${ticker.ticker} - AI Model Available`;
                     } else if (btn) {
-                        btn.title = ${ticker.ticker} - S&P 500 Stock (Basic Info Only);
+                        btn.title = `${ticker.ticker} - S&P 500 Stock (Basic Info Only)`;
                     }
                 });
             } catch (error) {
@@ -1231,11 +1231,11 @@ HTML_TEMPLATE = '''
 
         async function fetchPredictions(ticker) {
             try {
-                const response = await fetch(/predict/${ticker});
+                const response = await fetch(`/predict/${ticker}`);
                 const data = await response.json();
                 if (data.error) {
                     if (!data.has_model) {
-                        showWarning(${ticker} is an S&P 500 stock but no AI model is available for predictions. Showing available information only.);
+                        showWarning(`${ticker} is an S&P 500 stock but no AI model is available for predictions. Showing available information only.`);
                         displayBasicInfo(data);
                     } else {
                         showError(data.error);
@@ -1251,7 +1251,7 @@ HTML_TEMPLATE = '''
 
         async function fetchHistoricalData(ticker) {
             try {
-                const response = await fetch(/historical/${ticker});
+                const response = await fetch(`/historical/${ticker}`);
                 const data = await response.json();
                 if (data.error) {
                     console.log('Historical data not available:', data.error);
@@ -1271,7 +1271,7 @@ HTML_TEMPLATE = '''
 
         async function fetchActualPrices(ticker, days) {
             try {
-                const response = await fetch(/prices/${ticker}?range=${days});
+                const response = await fetch(`/prices/${ticker}?range=${days}`);
                 const data = await response.json();
                 if (data.error) {
                     console.log('Actual prices not available:', data.error);
@@ -1288,17 +1288,17 @@ HTML_TEMPLATE = '''
             const tbody = document.querySelector('#metricsTable tbody');
             tbody.innerHTML = '';
             for (const [key, val] of Object.entries(metrics)) {
-                const row = <tr>
+                const row = `<tr>
                     <td>${key}</td>
                     <td>${val !== null ? val : 'N/A'}</td>
-                </tr>;
+                </tr>`;
                 tbody.innerHTML += row;
             }
         }
 
         function displayPredictions(data) {
             const stockInfo = document.getElementById('stockInfo');
-            stockInfo.innerHTML = 
+            stockInfo.innerHTML = `
                 <div class="stock-header">
                     <div class="stock-symbol">${data.ticker}</div>
                     <div class="current-price">${data.current_price}</div>
@@ -1339,14 +1339,14 @@ HTML_TEMPLATE = '''
                 </div>
                 <div style="text-align: center; color: #7f8c8d; margin-top: 15px; font-style: italic;">
                     <i class="fas fa-clock"></i> Last Updated: ${data.last_updated}
-                </div>;
+                </div>`;
             document.getElementById('loading').style.display = 'none';
             document.getElementById('results').style.display = 'grid';
         }
 
         function displayBasicInfo(data) {
             const stockInfo = document.getElementById('stockInfo');
-            stockInfo.innerHTML = 
+            stockInfo.innerHTML = `
                 <div class="stock-header">
                     <div class="stock-symbol">${data.ticker}</div>
                     <div style="font-size: 1.1rem; color: #f39c12;">
@@ -1363,7 +1363,7 @@ HTML_TEMPLATE = '''
                     <p style="color: #856404; font-size: 0.85rem;">
                         Look for tickers with green dots (●) for AI predictions.
                     </p>
-                </div>;
+                </div>`;
             document.getElementById('loading').style.display = 'none';
             document.getElementById('results').style.display = 'grid';
         }
@@ -1396,7 +1396,7 @@ HTML_TEMPLATE = '''
 
             const layout = {
                 title: {
-                    text: ${data.ticker} - Model vs Actual (Last 5 Days),
+                    text: `${data.ticker} - Model vs Actual (Last 5 Days)`,
                     font: { size: 16, color: '#2c3e50' }
                 },
                 xaxis: { 
@@ -1440,7 +1440,7 @@ HTML_TEMPLATE = '''
                 }
                 const diffClass = diff >= 0 ? 'difference-positive' : 'difference-negative';
                 const sign = diff >= 0 ? '+' : '';
-                tableBody.innerHTML += 
+                tableBody.innerHTML += `
                     <tr>
                         <td>${date}</td>
                         <td>${vol.toLocaleString()}</td>
@@ -1449,7 +1449,7 @@ HTML_TEMPLATE = '''
                         <td class="${diffClass}">${sign}${diff.toFixed(2)}</td>
                         <td class="${diffClass}">${sign}${pctErr.toFixed(2)}%</td>
                         <td><span class="${accClass}">${accText}</span></td>
-                    </tr>;
+                    </tr>`;
             }
         }
 
@@ -1466,7 +1466,7 @@ HTML_TEMPLATE = '''
 
             const layout = {
                 title: {
-                    text: ${data.ticker} - Actual Close Price (${data.dates.length} Days),
+                    text: `${data.ticker} - Actual Close Price (${data.dates.length} Days)`,
                     font: { size: 16, color: '#2c3e50' }
                 },
                 xaxis: { 
@@ -1492,23 +1492,23 @@ HTML_TEMPLATE = '''
             cont.innerHTML = '<h3><i class="fas fa-building"></i> Fundamentals</h3>';
             function genTable(records, title, icon) {
                 if (!records || !records.length) {
-                    return <div style="margin: 15px 0;">
+                    return `<div style="margin: 15px 0;">
                         <h4><i class="${icon}"></i> ${title}</h4>
                         <p style="color: #7f8c8d; font-style: italic;">No data available</p>
-                    </div>;
+                    </div>`;
                 }
                 const cols = Object.keys(records[0]);
-                let html = <div style="margin: 15px 0;">
+                let html = `<div style="margin: 15px 0;">
                     <h4><i class="${icon}"></i> ${title}</h4>
                     <div class="table-wrapper">
                         <table class="comparison-table">
-                            <thead><tr>;
-                html += cols.map(c => <th>${c}</th>).join('');
-                html += </tr></thead><tbody>;
+                            <thead><tr>`;
+                html += cols.map(c => `<th>${c}</th>`).join('');
+                html += `</tr></thead><tbody>`;
                 records.forEach(r => {
-                    html += '<tr>' + cols.map(c => <td>${r[c] || 'N/A'}</td>).join('') + '</tr>';
+                    html += '<tr>' + cols.map(c => `<td>${r[c] || 'N/A'}</td>`).join('') + '</tr>';
                 });
-                html += </tbody></table></div></div>;
+                html += `</tbody></table></div></div>`;
                 return html;
             }
             cont.innerHTML += genTable(data.earnings, 'Annual Earnings', 'fas fa-calendar-alt');
@@ -1520,14 +1520,14 @@ HTML_TEMPLATE = '''
 
         function showError(message) {
             const stockInfo = document.getElementById('stockInfo');
-            stockInfo.innerHTML = <div class="error"><i class="fas fa-exclamation-triangle"></i> ${message}</div>;
+            stockInfo.innerHTML = `<div class="error"><i class="fas fa-exclamation-triangle"></i> ${message}</div>`;
             document.getElementById('loading').style.display = 'none';
             document.getElementById('results').style.display = 'grid';
         }
 
         function showWarning(message) {
             const stockInfo = document.getElementById('stockInfo');
-            stockInfo.innerHTML = <div class="warning"><i class="fas fa-exclamation-triangle"></i> ${message}</div>;
+            stockInfo.innerHTML = `<div class="warning"><i class="fas fa-exclamation-triangle"></i> ${message}</div>`;
         }
 
         document.getElementById('modelBtn').addEventListener('click', () => {
