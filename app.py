@@ -124,6 +124,26 @@ def get_stock_data(ticker, days_back=500):
         return None
 
 
+def get_closing_price_data(ticker, days):
+    """Fetch closing price data for specific time frames."""
+    end_date = datetime.now()
+    start_date = end_date - timedelta(days=days + 10)  # Add buffer for weekends/holidays
+    try:
+        data = yf.download(
+            tickers=ticker,
+            start=start_date.strftime("%Y-%m-%d"),
+            end=end_date.strftime("%Y-%m-%d"),
+            progress=False
+        ).reset_index()
+        if data.empty:
+            return None
+        # Get the last 'days' entries
+        return data[['Date', 'Close']].tail(days)
+    except Exception as e:
+        print(f"Error fetching closing price data for {ticker}: {e}")
+        return None
+
+
 def prepare_prediction_data(data):
     """Prepare data for model prediction."""
     close_prices = data['Close'].values.astype('float32').reshape(-1, 1)
@@ -322,6 +342,38 @@ def prices(ticker):
         return jsonify({'error': str(e)})
 
 
+@app.route('/closing-prices/<ticker>')
+def closing_prices_timeframe(ticker):
+    """Return closing price data for multiple time frames (5, 30, 90, 365 days)."""
+    try:
+        time_frames = [5, 30, 90, 365]
+        results = {}
+        
+        for days in time_frames:
+            data = get_closing_price_data(ticker, days)
+            if data is not None and not data.empty:
+                results[f'{days}_days'] = {
+                    'dates': data['Date'].dt.strftime('%Y-%m-%d').tolist(),
+                    'prices': data['Close'].round(2).tolist(),
+                    'days': days
+                }
+            else:
+                results[f'{days}_days'] = {
+                    'dates': [],
+                    'prices': [],
+                    'days': days,
+                    'error': f'No data available for {days} days'
+                }
+        
+        return jsonify({
+            'ticker': ticker,
+            'timeframes': results,
+            'last_updated': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)})
+
+
 @app.route('/fundamentals/<ticker>')
 def fundamentals(ticker):
     try:
@@ -449,8 +501,8 @@ class StockNotificationSystem:
                             'current_price': predictions['current_price'],
                             'direction': predictions['direction']['label'],
                             'confidence': predictions['direction']['confidence'],
-                            '30_day_price': predictions['30_days'].price,
-                            '30_day_change': predictions['30_days'].percent_change
+                            '30_day_price': predictions['30_days']['price'],
+                            '30_day_change': predictions['30_days']['percent_change']
                         }
                         high_confidence_predictions.append(pred_data)
                 except Exception as e:
@@ -574,7 +626,7 @@ def setup_notifications(app, pushover_token=None, pushover_user=None):
     notification_system.start_scheduler()
     return notification_system
 
-# HTML Template with fixed actual price plotting
+# HTML Template with closing price plotting functionality
 HTML_TEMPLATE = '''
 <!DOCTYPE html>
 <html lang="en">
@@ -1023,6 +1075,29 @@ HTML_TEMPLATE = '''
             border: 1px solid #ccc;
         }
 
+        #closingPriceControls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        #closingPriceControls button {
+            padding: 5px 10px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            cursor: pointer;
+            background: #f8f9fa;
+            color: #2c3e50;
+            transition: all 0.3s ease;
+        }
+
+        #closingPriceControls button.active {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
         #tableContainer .table-header {
             display: flex;
             justify-content: flex-end;
@@ -1039,7 +1114,7 @@ HTML_TEMPLATE = '''
         }
 
         /* Ensure charts have visible height */
-        #chart, #actualChart {
+        #chart, #actualChart, #closingPriceChart {
             width: 100%;
             height: 400px;
         }
@@ -1135,6 +1210,7 @@ HTML_TEMPLATE = '''
                     <div class="plot-switcher">
                         <button id="modelBtn" class="active">Model vs Actual</button>
                         <button id="actualBtn">Actual Price</button>
+                        <button id="closingPriceBtn">Closing Price Analysis</button>
                     </div>
                     
                     <div id="modelSection">
@@ -1181,6 +1257,18 @@ HTML_TEMPLATE = '''
                         </div>
                         <div id="actualChart"></div>
                     </div>
+
+                    <div id="closingPriceSection" style="display: none; margin-top: 20px;">
+                        <h3><i class="fas fa-chart-line"></i> Closing Price Analysis</h3>
+                        <div id="closingPriceControls">
+                            <label>Time Frame:</label>
+                            <button onclick="showClosingPriceChart(5)" data-days="5" class="active">5 Days</button>
+                            <button onclick="showClosingPriceChart(30)" data-days="30">30 Days</button>
+                            <button onclick="showClosingPriceChart(90)" data-days="90">90 Days</button>
+                            <button onclick="showClosingPriceChart(365)" data-days="365">1 Year</button>
+                        </div>
+                        <div id="closingPriceChart"></div>
+                    </div>
                 </div>
                 
                 <div class="section-card" id="fundamentals">
@@ -1195,6 +1283,7 @@ HTML_TEMPLATE = '''
         let selectedTicker = null;
         let tickerData = [];
         let historicalData = null;
+        let closingPriceData = null;
 
         // Load ticker data and update display
         async function loadTickerData() {
@@ -1241,6 +1330,7 @@ HTML_TEMPLATE = '''
             fetchPredictions(ticker);
             fetchHistoricalData(ticker);
             fetchFundamentals(ticker);
+            fetchClosingPriceData(ticker);
         }
 
         async function fetchPredictions(ticker) {
@@ -1276,10 +1366,26 @@ HTML_TEMPLATE = '''
                 displayModelSection(data);
                 document.getElementById('modelSection').style.display = 'block';
                 document.getElementById('actualSection').style.display = 'none';
+                document.getElementById('closingPriceSection').style.display = 'none';
                 document.getElementById('modelBtn').classList.add('active');
                 document.getElementById('actualBtn').classList.remove('active');
+                document.getElementById('closingPriceBtn').classList.remove('active');
             } catch (error) {
                 console.error('Failed to fetch historical data:', error);
+            }
+        }
+
+        async function fetchClosingPriceData(ticker) {
+            try {
+                const response = await fetch(`/closing-prices/${ticker}`);
+                const data = await response.json();
+                if (data.error) {
+                    console.log('Closing price data not available:', data.error);
+                    return;
+                }
+                closingPriceData = data;
+            } catch (error) {
+                console.error('Failed to fetch closing price data:', error);
             }
         }
 
@@ -1501,6 +1607,62 @@ HTML_TEMPLATE = '''
             Plotly.newPlot('actualChart', [trace], layout, { responsive: true });
         }
 
+        function showClosingPriceChart(days) {
+            if (!closingPriceData || !closingPriceData.timeframes) {
+                console.log('No closing price data available');
+                return;
+            }
+
+            const timeframeKey = `${days}_days`;
+            const timeframeData = closingPriceData.timeframes[timeframeKey];
+
+            if (!timeframeData || !timeframeData.dates || timeframeData.dates.length === 0) {
+                console.log(`No data available for ${days} days`);
+                return;
+            }
+
+            // Update active button
+            document.querySelectorAll('#closingPriceControls button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.querySelector(`#closingPriceControls button[data-days="${days}"]`).classList.add('active');
+
+            const trace = {
+                x: timeframeData.dates,
+                y: timeframeData.prices,
+                type: 'scatter',
+                mode: 'lines+markers',
+                name: 'Closing Price',
+                line: { width: 3, color: '#3498db' },
+                marker: { size: 5, color: '#2980b9' },
+                fill: 'tonexty',
+                fillcolor: 'rgba(52, 152, 219, 0.1)'
+            };
+
+            const layout = {
+                title: {
+                    text: `${closingPriceData.ticker} - Closing Price Analysis (${days} Days)`,
+                    font: { size: 16, color: '#2c3e50' }
+                },
+                xaxis: { 
+                    title: 'Date',
+                    gridcolor: '#ecf0f1',
+                    tickangle: -45
+                },
+                yaxis: { 
+                    title: 'Closing Price ($)',
+                    gridcolor: '#ecf0f1'
+                },
+                hovermode: 'x unified',
+                showlegend: false,
+                margin: { l: 60, r: 30, t: 60, b: 100 },
+                plot_bgcolor: 'rgba(0,0,0,0)',
+                paper_bgcolor: 'rgba(0,0,0,0)'
+            };
+
+            Plotly.newPlot('closingPriceChart', [trace], layout, { responsive: true });
+        }
+
         function displayFundamentals(data) {
             const cont = document.getElementById('fundamentals');
             cont.innerHTML = '<h3><i class="fas fa-building"></i> Fundamentals</h3>';
@@ -1532,6 +1694,17 @@ HTML_TEMPLATE = '''
             cont.innerHTML += genTable(data.cashflow.slice(0,1), 'Cash Flow (Latest)', 'fas fa-money-bill-wave');
         }
 
+        async function fetchFundamentals(ticker) {
+            try {
+                const response = await fetch(`/fundamentals/${ticker}`);
+                const data = await response.json();
+                displayFundamentals(data);
+            } catch (error) {
+                console.error('Failed to fetch fundamentals:', error);
+                document.getElementById('fundamentals').innerHTML = '<h3><i class="fas fa-building"></i> Fundamentals</h3><p class="error">Failed to load fundamentals data</p>';
+            }
+        }
+
         function showError(message) {
             const stockInfo = document.getElementById('stockInfo');
             stockInfo.innerHTML = `<div class="error"><i class="fas fa-exclamation-triangle"></i> ${message}</div>`;
@@ -1544,12 +1717,15 @@ HTML_TEMPLATE = '''
             stockInfo.innerHTML = `<div class="warning"><i class="fas fa-exclamation-triangle"></i> ${message}</div>`;
         }
 
+        // Button event listeners
         document.getElementById('modelBtn').addEventListener('click', () => {
             if (!selectedTicker || !historicalData) return;
             document.getElementById('modelSection').style.display = 'block';
             document.getElementById('actualSection').style.display = 'none';
+            document.getElementById('closingPriceSection').style.display = 'none';
             document.getElementById('modelBtn').classList.add('active');
             document.getElementById('actualBtn').classList.remove('active');
+            document.getElementById('closingPriceBtn').classList.remove('active');
             displayModelSection(historicalData);
         });
 
@@ -1557,11 +1733,25 @@ HTML_TEMPLATE = '''
             if (!selectedTicker) return;
             document.getElementById('modelSection').style.display = 'none';
             document.getElementById('actualSection').style.display = 'block';
+            document.getElementById('closingPriceSection').style.display = 'none';
             document.getElementById('modelBtn').classList.remove('active');
             document.getElementById('actualBtn').classList.add('active');
+            document.getElementById('closingPriceBtn').classList.remove('active');
             const days = parseInt(document.getElementById('actualRangeSelect').value);
             const data = await fetchActualPrices(selectedTicker, days);
             if (data) displayActualSection(data);
+        });
+
+        document.getElementById('closingPriceBtn').addEventListener('click', () => {
+            if (!selectedTicker || !closingPriceData) return;
+            document.getElementById('modelSection').style.display = 'none';
+            document.getElementById('actualSection').style.display = 'none';
+            document.getElementById('closingPriceSection').style.display = 'block';
+            document.getElementById('modelBtn').classList.remove('active');
+            document.getElementById('actualBtn').classList.remove('active');
+            document.getElementById('closingPriceBtn').classList.add('active');
+            // Show default 5-day chart
+            showClosingPriceChart(5);
         });
 
         document.getElementById('tableRangeSelect').addEventListener('change', () => {
@@ -1616,6 +1806,7 @@ if __name__ == '__main__':
         print(f"🧪 Test notifications at: http://localhost:{available_port}/test-notifications")
         print(f"📊 Notification history at: http://localhost:{available_port}/notification-history")
         print(f"📋 Available tickers API: http://localhost:{available_port}/available-tickers")
+        print(f"📈 Closing prices API: http://localhost:{available_port}/closing-prices/<ticker>")
         trained_models = get_available_models()
         print(f"\n📈 Ticker Summary:")
         print(f"   • Total S&P 500 tickers: {len(sp500_tickers)}")
@@ -1623,6 +1814,10 @@ if __name__ == '__main__':
         print(f"   • Total available for display: {len(get_available_tickers())}")
         if trained_models:
             print(f"\n🤖 Tickers with AI models: {', '.join(sorted(trained_models)[:10])}{'...' if len(trained_models) > 10 else ''}")
+        print(f"\n🆕 New Features:")
+        print(f"   • Closing price analysis for 5, 30, 90, and 365 days")
+        print(f"   • Interactive time frame switching")
+        print(f"   • Enhanced visualization with fill areas")
         app.run(debug=True, host='0.0.0.0', port=available_port)
     else:
         print("❌ No available ports found. Please free up some ports and try again.")
