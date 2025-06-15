@@ -109,29 +109,10 @@ def get_stock_data(ticker, days_back=500):
             start=start_date.strftime("%Y-%m-%d"),
             end=end_date.strftime("%Y-%m-%d"),
             progress=False
-        )
+        ).reset_index()
         if data.empty:
             return None
-        
-        # Reset index to get Date as a column
-        data = data.reset_index()
-        
-        # Handle both single ticker and multi-ticker column structures
-        if 'Close' in data.columns:
-            return data[['Date', 'Close', 'Volume']]
-        else:
-            # For single ticker, columns might be multi-level
-            close_col = [col for col in data.columns if 'Close' in str(col)]
-            volume_col = [col for col in data.columns if 'Volume' in str(col)]
-            if close_col and volume_col:
-                result = pd.DataFrame({
-                    'Date': data['Date'],
-                    'Close': data[close_col[0]],
-                    'Volume': data[volume_col[0]]
-                })
-                return result
-            else:
-                return None
+        return data[['Date', 'Close', 'Volume']]
     except Exception as e:
         print(f"Error fetching data for {ticker}: {e}")
         return None
@@ -182,33 +163,10 @@ def get_historical_comparison(ticker, days=60):
             start=start_date.strftime("%Y-%m-%d"),
             end=end_date.strftime("%Y-%m-%d"),
             progress=False
-        )
-        if data.empty:
+        ).reset_index()
+        if data.empty or len(data) < days + WINDOW:
             return None
-            
-        # Reset index to get Date as a column
-        data = data.reset_index()
-        
-        # Handle both single ticker and multi-ticker column structures
-        if 'Close' in data.columns:
-            result = data[['Date', 'Close', 'Volume']]
-        else:
-            # For single ticker, columns might be multi-level
-            close_col = [col for col in data.columns if 'Close' in str(col)]
-            volume_col = [col for col in data.columns if 'Volume' in str(col)]
-            if close_col and volume_col:
-                result = pd.DataFrame({
-                    'Date': data['Date'],
-                    'Close': data[close_col[0]],
-                    'Volume': data[volume_col[0]]
-                })
-            else:
-                return None
-                
-        if len(result) < days + WINDOW:
-            return None
-            
-        return result
+        return data[['Date', 'Close', 'Volume']]
     except Exception as e:
         print(f"Error fetching historical data for {ticker}: {e}")
         return None
@@ -341,25 +299,13 @@ def prices(ticker):
         data = get_stock_data(ticker, days_back=range_days + 10)  # extra buffer
         if data is None or data.empty:
             return jsonify({'error': f'Unable to fetch price data for {ticker}'})
-        # Ensure we have enough data
-        if len(data) < range_days:
-            # If not enough data, use what we have
-            df = data
-        else:
-            df = data.tail(range_days)
-        
-        # Convert to lists properly
-        dates_list = df['Date'].dt.strftime('%Y-%m-%d').values.tolist()
-        prices_list = df['Close'].astype(float).values.tolist()
-        
+        df = data.tail(range_days)
         return jsonify({
-            'dates': dates_list,
-            'prices': [round(price, 2) for price in prices_list],
-            'ticker': ticker,
-            'range': range_days
+            'dates': df['Date'].dt.strftime('%Y-%m-%d').tolist(),
+            'prices': df['Close'].round(2).tolist(),
+            'ticker': ticker
         })
     except Exception as e:
-        print(f"Error in prices endpoint: {str(e)}")
         return jsonify({'error': str(e)})
 
 @app.route('/fundamentals/<ticker>')
@@ -614,7 +560,7 @@ def setup_notifications(app, pushover_token=None, pushover_user=None):
     notification_system.start_scheduler()
     return notification_system
 
-# HTML Template with corrected actual-price plotting
+# HTML Template with fixed actual price plotting
 HTML_TEMPLATE = '''
 <!DOCTYPE html>
 <html lang="en">
@@ -1209,18 +1155,17 @@ HTML_TEMPLATE = '''
                         </div>
                     </div>
                     
-                    <div id="actualSection" style="display: none;">
-                        <h3><i class="fas fa-chart-line"></i> Actual Stock Price</h3>
+                    <div id="actualSection" style="display: none; margin-top: 20px;">
                         <div id="actualControls">
                             <label for="actualRangeSelect">View Actual Price for:</label>
                             <select id="actualRangeSelect">
-                                <option value="5">5 Days</option>
+                                <option value="7">1 Week</option>
                                 <option value="30" selected>30 Days</option>
                                 <option value="90">90 Days</option>
-                                <option value="100">100 Days</option>
+                                <option value="365">1 Year</option>
                             </select>
                         </div>
-                        <div id="actualChart" style="min-height: 400px;"></div>
+                        <div id="actualChart"></div>
                     </div>
                 </div>
                 
@@ -1329,32 +1274,13 @@ HTML_TEMPLATE = '''
                 const response = await fetch(/prices/${ticker}?range=${days});
                 const data = await response.json();
                 if (data.error) {
-                    console.error('Actual prices not available:', data.error);
-                    showError(Unable to fetch price data: ${data.error});
+                    console.log('Actual prices not available:', data.error);
                     return null;
                 }
-                console.log('Fetched actual prices:', data);
                 return data;
             } catch (error) {
                 console.error('Failed to fetch actual prices:', error);
-                showError(Failed to fetch actual prices: ${error.message});
                 return null;
-            }
-        }
-
-        async function fetchFundamentals(ticker) {
-            try {
-                const response = await fetch(/fundamentals/${ticker});
-                const data = await response.json();
-                if (data.error) {
-                    console.error('Fundamentals not available:', data.error);
-                    document.getElementById('fundamentals').innerHTML = '<h3><i class="fas fa-building"></i> Fundamentals</h3><p style="color: #7f8c8d; font-style: italic;">Fundamentals data not available for this ticker.</p>';
-                    return;
-                }
-                displayFundamentals(data);
-            } catch (error) {
-                console.error('Failed to fetch fundamentals:', error);
-                document.getElementById('fundamentals').innerHTML = '<h3><i class="fas fa-building"></i> Fundamentals</h3><p style="color: #e74c3c;">Error loading fundamentals data.</p>';
             }
         }
 
@@ -1443,13 +1369,7 @@ HTML_TEMPLATE = '''
         }
 
         function displayModelSection(data) {
-            if (!data || !data.dates || data.dates.length === 0) {
-                document.getElementById('chart').innerHTML = '<p style="text-align: center; color: #e74c3c;">No historical data available</p>';
-                document.getElementById('modelSection').style.display = 'none';
-                return;
-            }
-
-            const sliceCount = Math.min(60, data.dates.length);
+            const sliceCount = 5;
             const dates = data.dates.slice(-sliceCount);
             const actual = data.actual.slice(-sliceCount);
             const predicted = data.predicted.slice(-sliceCount);
@@ -1461,8 +1381,7 @@ HTML_TEMPLATE = '''
                 mode: 'lines+markers',
                 name: 'Actual Price',
                 line: { width: 2, color: '#27ae60' },
-                marker: { size: 5, color: '#27ae60' },
-                hovertemplate: '<b>Date:</b> %{x}<br><b>Actual:</b> $%{y:.2f}<extra></extra>'
+                marker: { size: 5, color: '#27ae60' }
             };
 
             const trace2 = {
@@ -1472,55 +1391,37 @@ HTML_TEMPLATE = '''
                 mode: 'lines+markers',
                 name: 'Predicted Price',
                 line: { width: 2, dash: 'dash', color: '#667eea' },
-                marker: { size: 5, color: '#667eea' },
-                hovertemplate: '<b>Date:</b> %{x}<br><b>Predicted:</b> $%{y:.2f}<extra></extra>'
+                marker: { size: 5, color: '#667eea' }
             };
 
             const layout = {
                 title: {
-                    text: ${data.ticker} - Model vs Actual (Last ${sliceCount} Days),
+                    text: ${data.ticker} - Model vs Actual (Last 5 Days),
                     font: { size: 16, color: '#2c3e50' }
                 },
                 xaxis: { 
                     title: 'Date',
-                    gridcolor: '#ecf0f1',
-                    tickangle: -45
+                    gridcolor: '#ecf0f1'
                 },
                 yaxis: { 
                     title: 'Price ($)',
-                    gridcolor: '#ecf0f1',
-                    tickformat: '$.2f'
+                    gridcolor: '#ecf0f1'
                 },
                 hovermode: 'x unified',
                 showlegend: true,
-                legend: {
-                    x: 0,
-                    y: 1,
-                    bgcolor: 'rgba(255, 255, 255, 0.8)',
-                    bordercolor: '#ccc',
-                    borderwidth: 1
-                },
-                margin: { l: 60, r: 30, t: 50, b: 80 },
+                margin: { l: 50, r: 30, t: 50, b: 60 },
                 plot_bgcolor: 'rgba(0,0,0,0)',
-                paper_bgcolor: 'rgba(0,0,0,0)',
-                autosize: true
+                paper_bgcolor: 'rgba(0,0,0,0)'
             };
 
-            const config = {
-                responsive: true,
-                displayModeBar: true,
-                displaylogo: false,
-                modeBarButtonsToRemove: ['pan2d', 'lasso2d']
-            };
-
-            Plotly.newPlot('chart', [trace1, trace2], layout, config);
-            populateComparisonTable(data, sliceCount);
+            Plotly.newPlot('chart', [trace1, trace2], layout, { responsive: true });
+            populateComparisonTable(data, 60);
         }
 
         function populateComparisonTable(data, days) {
             const tableBody = document.getElementById('tableBody');
             tableBody.innerHTML = '';
-            const startIdx = Math.max(0, data.dates.length - days);
+            const startIdx = data.dates.length - days;
             for (let i = startIdx; i < data.dates.length; i++) {
                 const date = data.dates[i];
                 const vol = data.volume[i];
@@ -1553,11 +1454,6 @@ HTML_TEMPLATE = '''
         }
 
         function displayActualSection(data) {
-            if (!data || !data.dates || !data.prices || data.dates.length === 0) {
-                document.getElementById('actualChart').innerHTML = '<p style="text-align: center; color: #e74c3c;">No price data available</p>';
-                return;
-            }
-
             const trace = {
                 x: data.dates,
                 y: data.prices,
@@ -1565,8 +1461,7 @@ HTML_TEMPLATE = '''
                 mode: 'lines+markers',
                 name: 'Close Price',
                 line: { width: 2, color: '#e74c3c' },
-                marker: { size: 4, color: '#e74c3c' },
-                hovertemplate: '<b>Date:</b> %{x}<br><b>Price:</b> $%{y:.2f}<extra></extra>'
+                marker: { size: 4, color: '#e74c3c' }
             };
 
             const layout = {
@@ -1576,31 +1471,20 @@ HTML_TEMPLATE = '''
                 },
                 xaxis: { 
                     title: 'Date',
-                    gridcolor: '#ecf0f1',
-                    tickangle: -45
+                    gridcolor: '#ecf0f1'
                 },
                 yaxis: { 
                     title: 'Price ($)',
-                    gridcolor: '#ecf0f1',
-                    tickformat: '$.2f'
+                    gridcolor: '#ecf0f1'
                 },
                 hovermode: 'x unified',
                 showlegend: false,
-                margin: { l: 60, r: 30, t: 50, b: 80 },
+                margin: { l: 50, r: 30, t: 50, b: 60 },
                 plot_bgcolor: 'rgba(0,0,0,0)',
-                paper_bgcolor: 'rgba(0,0,0,0)',
-                autosize: true
+                paper_bgcolor: 'rgba(0,0,0,0)'
             };
 
-            const config = {
-                responsive: true,
-                displayModeBar: true,
-                displaylogo: false,
-                modeBarButtonsToRemove: ['pan2d', 'lasso2d']
-            };
-
-            // Clear any existing plot and draw the new one
-            Plotly.newPlot('actualChart', [trace], layout, config);
+            Plotly.newPlot('actualChart', [trace], layout, { responsive: true });
         }
 
         function displayFundamentals(data) {
@@ -1657,22 +1541,13 @@ HTML_TEMPLATE = '''
 
         document.getElementById('actualBtn').addEventListener('click', async () => {
             if (!selectedTicker) return;
-            console.log('Switching to actual price view for:', selectedTicker);
             document.getElementById('modelSection').style.display = 'none';
             document.getElementById('actualSection').style.display = 'block';
             document.getElementById('modelBtn').classList.remove('active');
             document.getElementById('actualBtn').classList.add('active');
-            
-            // Show loading state
-            document.getElementById('actualChart').innerHTML = '<div style="text-align: center; padding: 20px;"><div class="spinner"></div><p>Loading price data...</p></div>';
-            
             const days = parseInt(document.getElementById('actualRangeSelect').value);
             const data = await fetchActualPrices(selectedTicker, days);
-            if (data) {
-                displayActualSection(data);
-            } else {
-                document.getElementById('actualChart').innerHTML = '<p style="text-align: center; color: #e74c3c;">Unable to load price data. Please try again.</p>';
-            }
+            if (data) displayActualSection(data);
         });
 
         document.getElementById('tableRangeSelect').addEventListener('change', () => {
@@ -1682,18 +1557,9 @@ HTML_TEMPLATE = '''
 
         document.getElementById('actualRangeSelect').addEventListener('change', async () => {
             if (!selectedTicker) return;
-            console.log('Range changed, fetching data for:', selectedTicker);
-            
-            // Show loading state
-            document.getElementById('actualChart').innerHTML = '<div style="text-align: center; padding: 20px;"><div class="spinner"></div><p>Loading price data...</p></div>';
-            
             const days = parseInt(document.getElementById('actualRangeSelect').value);
             const data = await fetchActualPrices(selectedTicker, days);
-            if (data) {
-                displayActualSection(data);
-            } else {
-                document.getElementById('actualChart').innerHTML = '<p style="text-align: center; color: #e74c3c;">Unable to load price data. Please try again.</p>';
-            }
+            if (data) displayActualSection(data);
         });
 
         document.addEventListener('DOMContentLoaded', function() {
