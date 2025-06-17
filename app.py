@@ -12,6 +12,8 @@ import json
 import plotly.graph_objs as go
 import plotly.utils
 import warnings
+import traceback
+import logging
 warnings.filterwarnings('ignore')
 
 # Additional imports for push notifications
@@ -20,6 +22,17 @@ import schedule
 import time
 import threading
 import sqlite3
+
+# Configure logging for error tracking
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('stock_app_errors.log'),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
 
 # Custom JSON encoder to handle numpy types
 def convert_numpy_types(obj):
@@ -47,9 +60,13 @@ def get_sp500_tickers():
         symbols = PyTickerSymbols()
         sp500_stocks = symbols.get_stocks_by_index("S&P 500")
         tickers = [stock['symbol'] for stock in sp500_stocks]
+        logger.info(f"Successfully fetched {len(tickers)} S&P 500 tickers")
         return sorted(tickers)
     except Exception as e:
-        print(f"Error fetching S&P 500 tickers: {e}")
+        error_msg = f"Error fetching S&P 500 tickers: {e}"
+        logger.error(error_msg)
+        logger.error(traceback.format_exc())
+        print(error_msg)
         return sorted([
             'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'META', 'NVDA', 'BRK-B',
             'JNJ', 'V', 'WMT', 'UNH', 'PG', 'HD', 'MA', 'BAC', 'ADBE', 'PFE',
@@ -98,106 +115,102 @@ def get_available_models():
 
 def load_best_model(ticker):
     """Load the best saved model for a ticker."""
-    model_files = glob.glob(f'saved_models/{ticker}_model_epoch_*.keras')
-    if not model_files:
+    try:
+        model_files = glob.glob(f'saved_models/{ticker}_model_epoch_*.keras')
+        if not model_files:
+            logger.warning(f"No model files found for ticker {ticker}")
+            return None
+        best_model_path = sorted(model_files)[-1]
+        logger.info(f"Loading model for {ticker}: {best_model_path}")
+        return load_model(best_model_path)
+    except Exception as e:
+        error_msg = f"Error loading model for {ticker}: {e}"
+        logger.error(error_msg)
+        logger.error(traceback.format_exc())
         return None
-    best_model_path = sorted(model_files)[-1]
-    return load_model(best_model_path)
 
 
 def get_stock_data(ticker, days_back=500):
-    """Fetch recent stock data for predictions."""
+    """Fetch recent stock data for predictions - Enhanced version."""
     end_date = datetime.now()
     start_date = end_date - timedelta(days=days_back)
     try:
-        data = yf.download(
-            tickers=ticker,
+        logger.info(f"Fetching stock data for {ticker}: {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}")
+        
+        # Use yfinance Ticker object for more reliable data fetching
+        ticker_obj = yf.Ticker(ticker)
+        
+        # Try to get historical data
+        data = ticker_obj.history(
             start=start_date.strftime("%Y-%m-%d"),
             end=end_date.strftime("%Y-%m-%d"),
-            progress=False
-        ).reset_index()
+            period="1d"
+        )
+        
         if data.empty:
+            error_msg = f"No data returned from yfinance for {ticker}"
+            logger.error(error_msg)
+            print(error_msg)
             return None
-        return data[['Date', 'Close', 'Volume']]
-    except Exception as e:
-        print(f"Error fetching data for {ticker}: {e}")
-        return None
-
-
-def get_closing_price_data(ticker, days):
-    """Fetch closing price data for specific time frames."""
-    end_date = datetime.now()
-    start_date = end_date - timedelta(days=days + 10)  # Add buffer for weekends/holidays
-    try:
-        data = yf.download(
-            tickers=ticker,
-            start=start_date.strftime("%Y-%m-%d"),
-            end=end_date.strftime("%Y-%m-%d"),
-            progress=False
-        ).reset_index()
-        if data.empty:
+            
+        # Reset index to get Date as a column
+        data = data.reset_index()
+        
+        # Ensure we have the required columns
+        required_columns = ['Date', 'Close', 'Volume']
+        missing_columns = [col for col in required_columns if col not in data.columns]
+        
+        if missing_columns:
+            error_msg = f"Missing columns for {ticker}: {missing_columns}"
+            logger.error(error_msg)
+            print(error_msg)
             return None
-        # Get the last 'days' entries
-        return data[['Date', 'Close']].tail(days)
+            
+        logger.info(f"Successfully fetched {len(data)} rows for {ticker}")
+        print(f"Successfully fetched {len(data)} rows for {ticker}")
+        return data[required_columns]
+        
     except Exception as e:
-        print(f"Error fetching closing price data for {ticker}: {e}")
+        error_msg = f"Error fetching data for {ticker}: {e}"
+        logger.error(error_msg)
+        logger.error(traceback.format_exc())
+        print(error_msg)
         return None
-
-
-def prepare_prediction_data(data):
-    """Prepare data for model prediction."""
-    close_prices = data['Close'].values.astype('float32').reshape(-1, 1)
-    scaler = MinMaxScaler(feature_range=(0, 1))
-    scaled_prices = scaler.fit_transform(close_prices)
-    if len(scaled_prices) < WINDOW:
-        return None, None, None
-    last_window = scaled_prices[-WINDOW:, 0]
-    X = np.array([last_window])
-    X = np.reshape(X, (X.shape[0], 1, WINDOW))
-    return X, scaler, close_prices[-1][0]
-
-
-def make_predictions(model, X, scaler, current_price, days_list=[30, 60, 90, 120]):
-    """Make price predictions for multiple time horizons."""
-    predictions = {}
-    pred_next, pred_month, pred_dir = model.predict(X, verbose=0)
-    direction_label = int(np.argmax(pred_dir[0]))
-    direction_text = assign_label_text(direction_label)
-    next_day_price = float(scaler.inverse_transform([[pred_next[0][0]]])[0][0])
-    month_price = float(scaler.inverse_transform([[pred_month[0][0]]])[0][0])
-    daily_change_rate = (month_price - current_price) / 20  # 20-day horizon from model
-    for days in days_list:
-        predicted_price = current_price + (daily_change_rate * days)
-        price_change = predicted_price - current_price
-        percent_change = (price_change / current_price) * 100
-        predictions[f'{days}_days'] = {
-            'price': f"${predicted_price:.2f}",
-            'change': round(float(price_change), 2),
-            'percent_change': round(float(percent_change), 2)
-        }
-    predictions['direction'] = {
-        'label': direction_text,
-        'confidence': round(float(np.max(pred_dir[0])) * 100, 1)
-    }
-    return predictions
 
 
 def get_historical_comparison(ticker, days=60):
-    """Get historical data for model vs actual comparison."""
+    """Get historical data for model vs actual comparison with flexible date handling."""
     end_date = datetime.now()
     start_date = end_date - timedelta(days=days+100)
     try:
+        logger.info(f"Fetching historical comparison data for {ticker}: {days} days")
+        
         data = yf.download(
             tickers=ticker,
             start=start_date.strftime("%Y-%m-%d"),
             end=end_date.strftime("%Y-%m-%d"),
             progress=False
         ).reset_index()
-        if data.empty or len(data) < days + WINDOW:
+        
+        if data.empty:
+            error_msg = f"No historical data found for {ticker}"
+            logger.error(error_msg)
             return None
+            
+        # Ensure we have enough data points
+        if len(data) < WINDOW + 1:
+            error_msg = f"Insufficient historical data for {ticker}: {len(data)} rows, need at least {WINDOW + 1}"
+            logger.error(error_msg)
+            return None
+            
+        logger.info(f"Successfully fetched historical comparison data for {ticker}: {len(data)} rows")
         return data[['Date', 'Close', 'Volume']]
+        
     except Exception as e:
-        print(f"Error fetching historical data for {ticker}: {e}")
+        error_msg = f"Error fetching historical data for {ticker}: {e}"
+        logger.error(error_msg)
+        logger.error(traceback.format_exc())
+        print(error_msg)
         return None
 
 
@@ -210,27 +223,70 @@ def index():
 @app.route('/predict/<ticker>')
 def predict_stock(ticker):
     try:
+        logger.info(f"Starting prediction for ticker: {ticker}")
+        
         model = load_best_model(ticker)
         if model is None:
+            logger.warning(f"No trained model found for {ticker}")
             return jsonify({
                 'error': f'No trained model found for {ticker}. This ticker is available for viewing but predictions require a trained model.',
                 'ticker': ticker,
                 'has_model': False
             })
+            
         data = get_stock_data(ticker)
         if data is None:
-            return jsonify({'error': f'Unable to fetch data for {ticker}'})
-        X, scaler, current_price = prepare_prediction_data(data)
-        if X is None:
-            return jsonify({'error': f'Insufficient data for {ticker}'})
-        predictions = make_predictions(model, X, scaler, current_price)
+            error_msg = f'Unable to fetch data for {ticker}'
+            logger.error(error_msg)
+            return jsonify({'error': error_msg})
+            
+        close_prices = data['Close'].values.astype('float32').reshape(-1, 1)
+        scaler = MinMaxScaler(feature_range=(0, 1))
+        scaled_prices = scaler.fit_transform(close_prices)
+        if len(scaled_prices) < WINDOW:
+            logger.warning(f"Insufficient data for prediction: {len(scaled_prices)} < {WINDOW}")
+            return jsonify({'error': 'Insufficient data for prediction'})
+        last_window = scaled_prices[-WINDOW:, 0]
+        X = np.array([last_window])
+        X = np.reshape(X, (X.shape[0], 1, WINDOW))
+        current_price = close_prices[-1][0]
+        
+        # Make predictions
+        predictions = {}
+        pred_next, pred_month, pred_dir = model.predict(X, verbose=0)
+        direction_label = int(np.argmax(pred_dir[0]))
+        direction_text = assign_label_text(direction_label)
+        next_day_price = float(scaler.inverse_transform([[pred_next[0][0]]])[0][0])
+        month_price = float(scaler.inverse_transform([[pred_month[0][0]]])[0][0])
+        daily_change_rate = (month_price - current_price) / 20  # 20-day horizon from model
+        
+        # Define the time periods we're interested in
+        time_periods = [5, 30, 90, 365]
+        for days in time_periods:
+            predicted_price = current_price + (daily_change_rate * days)
+            price_change = predicted_price - current_price
+            percent_change = (price_change / current_price) * 100
+            predictions[f'{days}_days'] = {
+                'price': f"${predicted_price:.2f}",
+                'change': round(float(price_change), 2),
+                'percent_change': round(float(percent_change), 2)
+            }
+        
+        predictions['direction'] = {
+            'label': direction_text,
+            'confidence': round(float(np.max(pred_dir[0])) * 100, 1)
+        }
         predictions['current_price'] = f"${current_price:.2f}"
         predictions['ticker'] = ticker
         predictions['last_updated'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         predictions['has_model'] = True
+        
+        # Fetch additional metrics
         try:
+            logger.info(f"Fetching additional metrics for {ticker}")
             tk = yf.Ticker(ticker)
             info = tk.info
+            
             def format_metric(value, format_type='general'):
                 if value is None or value == 'N/A':
                     return 'N/A'
@@ -255,6 +311,7 @@ def predict_stock(ticker):
                     else:
                         return f"{value:,.0f}"
                 return str(value)
+                
             predictions['metrics'] = {
                 'Market Cap': format_metric(info.get('marketCap'), 'large_number'),
                 'P/E Ratio': format_metric(info.get('trailingPE')),
@@ -267,8 +324,13 @@ def predict_stock(ticker):
                 '52W Low': format_metric(info.get('fiftyTwoWeekLow'), 'currency'),
                 'EPS': format_metric(info.get('trailingEps'), 'currency')
             }
+            logger.info(f"Successfully fetched metrics for {ticker}")
+            
         except Exception as e:
-            print(f"Error fetching metrics for {ticker}: {e}")
+            error_msg = f"Error fetching metrics for {ticker}: {e}"
+            logger.error(error_msg)
+            logger.error(traceback.format_exc())
+            print(error_msg)
             predictions['metrics'] = {
                 'Market Cap': 'N/A',
                 'P/E Ratio': 'N/A',
@@ -281,38 +343,56 @@ def predict_stock(ticker):
                 '52W Low': 'N/A',
                 'EPS': 'N/A'
             }
+            
+        logger.info(f"Successfully completed prediction for {ticker}")
         return jsonify(predictions)
+        
     except Exception as e:
+        error_msg = f"Unexpected error in predict_stock for {ticker}: {e}"
+        logger.error(error_msg)
+        logger.error(traceback.format_exc())
         return jsonify({'error': str(e)})
 
 
 @app.route('/historical/<ticker>')
 def historical_comparison(ticker):
     try:
+        logger.info(f"Fetching historical comparison for {ticker}")
+        
         model = load_best_model(ticker)
         if model is None:
-            return jsonify({'error': f'No trained model found for {ticker}'})
+            error_msg = f'No trained model found for {ticker}'
+            logger.error(error_msg)
+            return jsonify({'error': error_msg})
+            
         data = get_historical_comparison(ticker, days=60)
         if data is None:
-            return jsonify({'error': f'Insufficient historical data for {ticker}'})
+            error_msg = f'Insufficient historical data for {ticker}'
+            logger.error(error_msg)
+            return jsonify({'error': error_msg})
+            
         close_prices = data['Close'].values.astype('float32').reshape(-1, 1)
         scaler = MinMaxScaler(feature_range=(0, 1))
         scaled_prices = scaler.fit_transform(close_prices)
+        
         dates = []
         actual_prices = []
         predicted_prices = []
         volumes = []
-        start_idx = len(data) - 60
+        
+        # Start from the point where we have enough data for a full window
+        start_idx = WINDOW
         for i in range(start_idx, len(data)):
-            if i >= WINDOW:
-                window_data = scaled_prices[i-WINDOW:i, 0]
-                X = np.array([window_data]).reshape(1, 1, WINDOW)
-                pred_next, _, _ = model.predict(X, verbose=0)
-                pred_price = scaler.inverse_transform([[pred_next[0][0]]])[0][0]
-                dates.append(data['Date'].iloc[i].strftime('%Y-%m-%d'))
-                actual_prices.append(round(float(data['Close'].iloc[i]), 2))
-                predicted_prices.append(round(float(pred_price), 2))
-                volumes.append(int(data['Volume'].iloc[i]))
+            window_data = scaled_prices[i-WINDOW:i, 0]
+            X = np.array([window_data]).reshape(1, 1, WINDOW)
+            pred_next, _, _ = model.predict(X, verbose=0)
+            pred_price = scaler.inverse_transform([[pred_next[0][0]]])[0][0]
+            dates.append(data['Date'].iloc[i].strftime('%Y-%m-%d'))
+            actual_prices.append(round(float(data['Close'].iloc[i]), 2))
+            predicted_prices.append(round(float(pred_price), 2))
+            volumes.append(int(data['Volume'].iloc[i]))
+                
+        logger.info(f"Successfully generated historical comparison for {ticker}: {len(dates)} data points")
         return jsonify({
             'dates': dates,
             'actual': actual_prices,
@@ -320,84 +400,88 @@ def historical_comparison(ticker):
             'volume': volumes,
             'ticker': ticker
         })
+        
     except Exception as e:
+        error_msg = f"Error in historical_comparison for {ticker}: {e}"
+        logger.error(error_msg)
+        logger.error(traceback.format_exc())
         return jsonify({'error': str(e)})
 
 
 @app.route('/prices/<ticker>')
 def prices(ticker):
-    """Return actual closing prices for a given range of days."""
+    """Return actual closing prices for a given range of days with flexible date handling."""
     try:
         range_days = int(request.args.get('range', 30))
-        data = get_stock_data(ticker, days_back=range_days + 10)  # extra buffer
+        logger.info(f"Fetching prices for {ticker}, range: {range_days} days")
+        
+        # Fetch data with buffer to account for missing days
+        data = get_stock_data(ticker, days_back=range_days + 20)
         if data is None or data.empty:
-            return jsonify({'error': f'Unable to fetch price data for {ticker}'})
+            error_msg = f'Unable to fetch price data for {ticker}'
+            logger.error(error_msg)
+            return jsonify({'error': error_msg})
+            
+        # Take the last 'range_days' entries
         df = data.tail(range_days)
+        logger.info(f"Successfully fetched {len(df)} price data points for {ticker}")
+        
         return jsonify({
             'dates': df['Date'].dt.strftime('%Y-%m-%d').tolist(),
             'prices': df['Close'].round(2).tolist(),
             'ticker': ticker
         })
-    except Exception as e:
-        return jsonify({'error': str(e)})
-
-
-@app.route('/closing-prices/<ticker>')
-def closing_prices_timeframe(ticker):
-    """Return closing price data for multiple time frames (5, 30, 90, 365 days)."""
-    try:
-        time_frames = [5, 30, 90, 365]
-        results = {}
         
-        for days in time_frames:
-            data = get_closing_price_data(ticker, days)
-            if data is not None and not data.empty:
-                results[f'{days}_days'] = {
-                    'dates': data['Date'].dt.strftime('%Y-%m-%d').tolist(),
-                    'prices': data['Close'].round(2).tolist(),
-                    'days': days
-                }
-            else:
-                results[f'{days}_days'] = {
-                    'dates': [],
-                    'prices': [],
-                    'days': days,
-                    'error': f'No data available for {days} days'
-                }
-        
-        return jsonify({
-            'ticker': ticker,
-            'timeframes': results,
-            'last_updated': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        })
     except Exception as e:
+        error_msg = f"Error in prices endpoint for {ticker}: {e}"
+        logger.error(error_msg)
+        logger.error(traceback.format_exc())
         return jsonify({'error': str(e)})
 
 
 @app.route('/fundamentals/<ticker>')
 def fundamentals(ticker):
     try:
+        logger.info(f"Fetching fundamentals for {ticker}")
+        
         tk = yf.Ticker(ticker)
+        
         try:
             earnings = tk.earnings.reset_index() if hasattr(tk, 'earnings') and tk.earnings is not None else pd.DataFrame()
-        except:
+            logger.info(f"Earnings data for {ticker}: {len(earnings)} rows")
+        except Exception as e:
+            logger.error(f"Error fetching earnings for {ticker}: {e}")
             earnings = pd.DataFrame()
+            
         try:
             quarterly_earnings = tk.quarterly_earnings.reset_index() if hasattr(tk, 'quarterly_earnings') and tk.quarterly_earnings is not None else pd.DataFrame()
-        except:
+            logger.info(f"Quarterly earnings data for {ticker}: {len(quarterly_earnings)} rows")
+        except Exception as e:
+            logger.error(f"Error fetching quarterly earnings for {ticker}: {e}")
             quarterly_earnings = pd.DataFrame()
+            
         try:
             bs = tk.balance_sheet.reset_index() if hasattr(tk, 'balance_sheet') and tk.balance_sheet is not None else pd.DataFrame()
-        except:
+            logger.info(f"Balance sheet data for {ticker}: {len(bs)} rows")
+        except Exception as e:
+            logger.error(f"Error fetching balance sheet for {ticker}: {e}")
             bs = pd.DataFrame()
+            
         try:
             fin = tk.financials.reset_index() if hasattr(tk, 'financials') and tk.financials is not None else pd.DataFrame()
-        except:
+            logger.info(f"Financials data for {ticker}: {len(fin)} rows")
+        except Exception as e:
+            logger.error(f"Error fetching financials for {ticker}: {e}")
             fin = pd.DataFrame()
+            
         try:
             cf = tk.cashflow.reset_index() if hasattr(tk, 'cashflow') and tk.cashflow is not None else pd.DataFrame()
-        except:
+            logger.info(f"Cashflow data for {ticker}: {len(cf)} rows")
+        except Exception as e:
+            logger.error(f"Error fetching cashflow for {ticker}: {e}")
             cf = pd.DataFrame()
+            
+        logger.info(f"Successfully completed fundamentals fetch for {ticker}")
         return jsonify({
             'earnings': earnings.to_dict(orient='records') if not earnings.empty else [],
             'quarterlyEarnings': quarterly_earnings.to_dict(orient='records') if not quarterly_earnings.empty else [],
@@ -405,8 +489,12 @@ def fundamentals(ticker):
             'financials': fin.to_dict(orient='records') if not fin.empty else [],
             'cashflow': cf.to_dict(orient='records') if not cf.empty else []
         })
+        
     except Exception as e:
-        print(f"Error fetching fundamentals for {ticker}: {e}")
+        error_msg = f"Error fetching fundamentals for {ticker}: {e}"
+        logger.error(error_msg)
+        logger.error(traceback.format_exc())
+        print(error_msg)
         return jsonify({'error': str(e)})
 
 # =============================================================================
@@ -438,13 +526,19 @@ class PushNotifier:
             }
             response = requests.post(self.url, data=data)
             if response.status_code == 200:
+                logger.info("Push notification sent successfully")
                 print("Push notification sent successfully")
                 return True
             else:
-                print(f"Failed to send push notification: {response.text}")
+                error_msg = f"Failed to send push notification: {response.text}"
+                logger.error(error_msg)
+                print(error_msg)
                 return False
         except Exception as e:
-            print(f"Error sending push notification: {str(e)}")
+            error_msg = f"Error sending push notification: {str(e)}"
+            logger.error(error_msg)
+            logger.error(traceback.format_exc())
+            print(error_msg)
             return False
 
 # =============================================================================
@@ -491,27 +585,50 @@ class StockNotificationSystem:
                     data = get_stock_data(ticker)
                     if data is None:
                         continue
-                    X, scaler, current_price = prepare_prediction_data(data)
-                    if X is None:
+                    close_prices = data['Close'].values.astype('float32').reshape(-1, 1)
+                    scaler = MinMaxScaler(feature_range=(0, 1))
+                    scaled_prices = scaler.fit_transform(close_prices)
+                    if len(scaled_prices) < WINDOW:
                         continue
-                    predictions = make_predictions(model, X, scaler, current_price)
-                    if predictions['direction']['confidence'] > min_confidence:
+                    last_window = scaled_prices[-WINDOW:, 0]
+                    X = np.array([last_window]).reshape(1, 1, WINDOW)
+                    current_price = close_prices[-1][0]
+                    
+                    # Make predictions
+                    pred_next, pred_month, pred_dir = model.predict(X, verbose=0)
+                    direction_label = int(np.argmax(pred_dir[0]))
+                    direction_text = assign_label_text(direction_label)
+                    confidence = round(float(np.max(pred_dir[0])) * 100, 1)
+                    
+                    if confidence > min_confidence:
+                        # Calculate 30-day prediction
+                        next_day_price = float(scaler.inverse_transform([[pred_next[0][0]]])[0][0])
+                        month_price = float(scaler.inverse_transform([[pred_month[0][0]]])[0][0])
+                        daily_change_rate = (month_price - current_price) / 20
+                        predicted_30_price = current_price + (daily_change_rate * 30)
+                        price_change = predicted_30_price - current_price
+                        percent_change = (price_change / current_price) * 100
+                        
                         pred_data = {
                             'ticker': ticker,
-                            'current_price': predictions['current_price'],
-                            'direction': predictions['direction']['label'],
-                            'confidence': predictions['direction']['confidence'],
-                            '30_day_price': predictions['30_days']['price'],
-                            '30_day_change': predictions['30_days']['percent_change']
+                            'current_price': round(current_price, 2),
+                            'direction': direction_text,
+                            'confidence': confidence,
+                            '30_day_price': round(predicted_30_price, 2),
+                            '30_day_change': round(percent_change, 2)
                         }
                         high_confidence_predictions.append(pred_data)
                 except Exception as e:
-                    print(f"Error processing {ticker}: {str(e)}")
+                    error_msg = f"Error processing {ticker}: {str(e)}"
+                    logger.error(error_msg)
+                    logger.error(traceback.format_exc())
+                    print(error_msg)
                     continue
         return high_confidence_predictions
     
     def send_notifications(self, predictions):
         if not predictions:
+            logger.info("No high-confidence predictions to send")
             print("No high-confidence predictions to send")
             return
         if self.push_notifier:
@@ -522,22 +639,28 @@ class StockNotificationSystem:
             print("Push notifications not configured. Set PUSHOVER_TOKEN and PUSHOVER_USER.")
     
     def log_notifications(self, predictions):
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        for pred in predictions:
-            cursor.execute('''
-                INSERT INTO notifications (ticker, confidence, direction, price, prediction_date, sent_date)
-                VALUES (?, ?, ?, ?, ?, ?)
-            ''', (
-                pred['ticker'],
-                pred['confidence'],
-                pred['direction'],
-                pred['current_price'],
-                datetime.now().strftime('%Y-%m-%d'),
-                datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            ))
-        conn.commit()
-        conn.close()
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            for pred in predictions:
+                cursor.execute('''
+                    INSERT INTO notifications (ticker, confidence, direction, price, prediction_date, sent_date)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                ''', (
+                    pred['ticker'],
+                    pred['confidence'],
+                    pred['direction'],
+                    pred['current_price'],
+                    datetime.now().strftime('%Y-%m-%d'),
+                    datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                ))
+            conn.commit()
+            conn.close()
+            logger.info(f"Logged {len(predictions)} notifications to database")
+        except Exception as e:
+            error_msg = f"Error logging notifications: {e}"
+            logger.error(error_msg)
+            logger.error(traceback.format_exc())
     
     def start_scheduler(self):
         def run_scheduler():
@@ -548,25 +671,40 @@ class StockNotificationSystem:
                 time.sleep(60)
         scheduler_thread = threading.Thread(target=run_scheduler, daemon=True)
         scheduler_thread.start()
+        logger.info("📱 Push notification scheduler started!")
         print("📱 Push notification scheduler started!")
         print("Daily notifications at 9:00 AM, hourly checks during market hours")
     
     def daily_notification_job(self):
-        print("🔍 Running daily high-confidence prediction check...")
-        predictions = self.get_high_confidence_predictions(min_confidence=50)
-        if predictions:
-            print(f"📈 Found {len(predictions)} high-confidence predictions")
-            self.send_notifications(predictions)
-        else:
-            print("📊 No high-confidence predictions found today")
+        try:
+            logger.info("🔍 Running daily high-confidence prediction check...")
+            print("🔍 Running daily high-confidence prediction check...")
+            predictions = self.get_high_confidence_predictions(min_confidence=50)
+            if predictions:
+                logger.info(f"📈 Found {len(predictions)} high-confidence predictions")
+                print(f"📈 Found {len(predictions)} high-confidence predictions")
+                self.send_notifications(predictions)
+            else:
+                logger.info("📊 No high-confidence predictions found today")
+                print("📊 No high-confidence predictions found today")
+        except Exception as e:
+            error_msg = f"Error in daily notification job: {e}"
+            logger.error(error_msg)
+            logger.error(traceback.format_exc())
     
     def hourly_notification_job(self):
-        current_hour = datetime.now().hour
-        if 9 <= current_hour <= 16:
-            predictions = self.get_high_confidence_predictions(min_confidence=75)
-            if predictions:
-                print(f"⚡ Hourly check: Found {len(predictions)} very high-confidence predictions")
-                self.send_notifications(predictions)
+        try:
+            current_hour = datetime.now().hour
+            if 9 <= current_hour <= 16:
+                predictions = self.get_high_confidence_predictions(min_confidence=75)
+                if predictions:
+                    logger.info(f"⚡ Hourly check: Found {len(predictions)} very high-confidence predictions")
+                    print(f"⚡ Hourly check: Found {len(predictions)} very high-confidence predictions")
+                    self.send_notifications(predictions)
+        except Exception as e:
+            error_msg = f"Error in hourly notification job: {e}"
+            logger.error(error_msg)
+            logger.error(traceback.format_exc())
 
 # =============================================================================
 # NOTIFICATION ROUTES
@@ -577,56 +715,74 @@ def setup_notifications(app, pushover_token=None, pushover_user=None):
     
     @app.route('/test-notifications')
     def test_notifications():
-        predictions = notification_system.get_high_confidence_predictions(min_confidence=30)
-        notification_system.send_notifications(predictions)
-        return jsonify({
-            'message': f'Test notification sent for {len(predictions)} predictions',
-            'predictions': predictions
-        })
+        try:
+            predictions = notification_system.get_high_confidence_predictions(min_confidence=30)
+            notification_system.send_notifications(predictions)
+            return jsonify({
+                'message': f'Test notification sent for {len(predictions)} predictions',
+                'predictions': predictions
+            })
+        except Exception as e:
+            error_msg = f"Error in test notifications: {e}"
+            logger.error(error_msg)
+            logger.error(traceback.format_exc())
+            return jsonify({'error': str(e)})
     
     @app.route('/notification-history')  
     def notification_history():
-        conn = sqlite3.connect(notification_system.db_path)
-        cursor = conn.cursor()
-        cursor.execute('SELECT * FROM notifications ORDER BY sent_date DESC LIMIT 50')
-        history = cursor.fetchall()
-        conn.close()
-        return jsonify({
-            'history': [
-                {
-                    'ticker': row[1],
-                    'confidence': row[2],
-                    'direction': row[3],
-                    'price': row[4],
-                    'prediction_date': row[5],
-                    'sent_date': row[6]
-                } for row in history
-            ]
-        })
+        try:
+            conn = sqlite3.connect(notification_system.db_path)
+            cursor = conn.cursor()
+            cursor.execute('SELECT * FROM notifications ORDER BY sent_date DESC LIMIT 50')
+            history = cursor.fetchall()
+            conn.close()
+            return jsonify({
+                'history': [
+                    {
+                        'ticker': row[1],
+                        'confidence': row[2],
+                        'direction': row[3],
+                        'price': row[4],
+                        'prediction_date': row[5],
+                        'sent_date': row[6]
+                    } for row in history
+                ]
+            })
+        except Exception as e:
+            error_msg = f"Error fetching notification history: {e}"
+            logger.error(error_msg)
+            logger.error(traceback.format_exc())
+            return jsonify({'error': str(e)})
     
     @app.route('/available-tickers')
     def available_tickers():
-        all_tickers = get_available_tickers()
-        trained_tickers = get_available_models()
-        ticker_status = []
-        for ticker in all_tickers:
-            status = {
-                'ticker': ticker,
-                'has_model': ticker in trained_tickers,
-                'in_sp500': ticker in get_sp500_tickers()
-            }
-            ticker_status.append(status)
-        return jsonify({
-            'tickers': ticker_status,
-            'total_count': len(all_tickers),
-            'trained_count': len(trained_tickers),
-            'sp500_count': len(get_sp500_tickers())
-        })
+        try:
+            all_tickers = get_available_tickers()
+            trained_tickers = get_available_models()
+            ticker_status = []
+            for ticker in all_tickers:
+                status = {
+                    'ticker': ticker,
+                    'has_model': ticker in trained_tickers,
+                    'in_sp500': ticker in get_sp500_tickers()
+                }
+                ticker_status.append(status)
+            return jsonify({
+                'tickers': ticker_status,
+                'total_count': len(all_tickers),
+                'trained_count': len(trained_tickers),
+                'sp500_count': len(get_sp500_tickers())
+            })
+        except Exception as e:
+            error_msg = f"Error fetching available tickers: {e}"
+            logger.error(error_msg)
+            logger.error(traceback.format_exc())
+            return jsonify({'error': str(e)})
     
     notification_system.start_scheduler()
     return notification_system
 
-# HTML Template with closing price plotting functionality
+# HTML Template with updated time periods
 HTML_TEMPLATE = '''
 <!DOCTYPE html>
 <html lang="en">
@@ -1075,48 +1231,22 @@ HTML_TEMPLATE = '''
             border: 1px solid #ccc;
         }
 
-        #closingPriceControls {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-bottom: 12px;
+        .error-display {
+            background: #ffebee;
+            border: 1px solid #f44336;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 10px 0;
+            color: #d32f2f;
+            font-family: monospace;
+            font-size: 0.9rem;
+            white-space: pre-wrap;
         }
 
-        #closingPriceControls button {
-            padding: 5px 10px;
-            border: 1px solid #ccc;
-            border-radius: 6px;
-            cursor: pointer;
-            background: #f8f9fa;
-            color: #2c3e50;
-            transition: all 0.3s ease;
-        }
-
-        #closingPriceControls button.active {
-            background: #667eea;
-            color: white;
-            border-color: #667eea;
-        }
-
-        #tableContainer .table-header {
-            display: flex;
-            justify-content: flex-end;
-            align-items: center;
-            gap: 10px;
+        .error-display h4 {
+            color: #c62828;
             margin-bottom: 10px;
-        }
-
-        #tableContainer select {
-            padding: 5px 8px;
-            font-size: 0.85rem;
-            border-radius: 6px;
-            border: 1px solid #ccc;
-        }
-
-        /* Ensure charts have visible height */
-        #chart, #actualChart, #closingPriceChart {
-            width: 100%;
-            height: 400px;
+            font-family: inherit;
         }
 
         @media (max-width: 768px) {
@@ -1210,7 +1340,6 @@ HTML_TEMPLATE = '''
                     <div class="plot-switcher">
                         <button id="modelBtn" class="active">Model vs Actual</button>
                         <button id="actualBtn">Actual Price</button>
-                        <button id="closingPriceBtn">Closing Price Analysis</button>
                     </div>
                     
                     <div id="modelSection">
@@ -1252,22 +1381,10 @@ HTML_TEMPLATE = '''
                                 <option value="5">5 Days</option>
                                 <option value="30" selected>30 Days</option>
                                 <option value="90">90 Days</option>
-                                <option value="100">100 Days</option>
+                                <option value="365">365 Days</option>
                             </select>
                         </div>
                         <div id="actualChart"></div>
-                    </div>
-
-                    <div id="closingPriceSection" style="display: none; margin-top: 20px;">
-                        <h3><i class="fas fa-chart-line"></i> Closing Price Analysis</h3>
-                        <div id="closingPriceControls">
-                            <label>Time Frame:</label>
-                            <button onclick="showClosingPriceChart(5)" data-days="5" class="active">5 Days</button>
-                            <button onclick="showClosingPriceChart(30)" data-days="30">30 Days</button>
-                            <button onclick="showClosingPriceChart(90)" data-days="90">90 Days</button>
-                            <button onclick="showClosingPriceChart(365)" data-days="365">1 Year</button>
-                        </div>
-                        <div id="closingPriceChart"></div>
                     </div>
                 </div>
                 
@@ -1283,13 +1400,44 @@ HTML_TEMPLATE = '''
         let selectedTicker = null;
         let tickerData = [];
         let historicalData = null;
-        let closingPriceData = null;
+
+        // Enhanced error display function
+        function displayError(containerId, error, context = '') {
+            const container = document.getElementById(containerId);
+            const timestamp = new Date().toLocaleString();
+            const errorHtml = 
+                `<div class="error-display">
+                    <h4>Error ${context ? 'in ' + context : ''} [${timestamp}]</h4>
+                    <div>${error}</div>
+                </div>`;
+            if (container) {
+                container.innerHTML = errorHtml;
+            }
+            console.error(`[${timestamp}] Error ${context ? 'in ' + context : ''}: ${error}`);
+        }
+
+        // Enhanced logging function
+        function logInfo(message, data = null) {
+            const timestamp = new Date().toLocaleString();
+            console.log(`[${timestamp}] ${message}`, data || '');
+        }
 
         // Load ticker data and update display
         async function loadTickerData() {
             try {
+                logInfo('Loading ticker data...');
                 const response = await fetch('/available-tickers');
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
                 const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
                 tickerData = data.tickers;
                 
                 // Update stats
@@ -1306,8 +1454,17 @@ HTML_TEMPLATE = '''
                         btn.title = `${ticker.ticker} - S&P 500 Stock (Basic Info Only)`;
                     }
                 });
+                
+                logInfo('Ticker data loaded successfully', {
+                    total: data.tickers.length,
+                    trained: data.trained_count,
+                    sp500: data.sp500_count
+                });
+                
             } catch (error) {
-                console.error('Error loading ticker data:', error);
+                const errorMsg = `Failed to load ticker data: ${error.message}`;
+                console.error(errorMsg);
+                displayError('tickerStats', errorMsg, 'ticker data loading');
             }
         }
 
@@ -1322,386 +1479,490 @@ HTML_TEMPLATE = '''
         });
 
         function selectTicker(ticker) {
-            selectedTicker = ticker;
-            document.querySelectorAll('.ticker-btn').forEach(btn => btn.classList.remove('active'));
-            event.target.classList.add('active');
-            document.getElementById('loading').style.display = 'block';
-            document.getElementById('results').style.display = 'none';
-            fetchPredictions(ticker);
-            fetchHistoricalData(ticker);
-            fetchFundamentals(ticker);
-            fetchClosingPriceData(ticker);
+            try {
+                selectedTicker = ticker;
+                document.querySelectorAll('.ticker-btn').forEach(btn => btn.classList.remove('active'));
+                event.target.classList.add('active');
+                document.getElementById('loading').style.display = 'block';
+                document.getElementById('results').style.display = 'none';
+                
+                // Reset data
+                historicalData = null;
+                
+                logInfo(`Selecting ticker: ${ticker}`);
+                
+                // Fetch all data with detailed logging
+                Promise.all([
+                    fetchPredictions(ticker).catch(e => {
+                        console.error('Predictions failed:', e);
+                        return null;
+                    }),
+                    fetchHistoricalData(ticker).catch(e => {
+                        console.error('Historical data failed:', e);
+                        return null;
+                    }),
+                    fetchFundamentals(ticker).catch(e => {
+                        console.error('Fundamentals failed:', e);
+                        return null;
+                    })
+                ]).then(() => {
+                    logInfo('All data fetching complete for ' + ticker);
+                    logInfo('Historical data available: ' + !!historicalData);
+                    
+                    // Show results after all data is loaded
+                    document.getElementById('loading').style.display = 'none';
+                    document.getElementById('results').style.display = 'grid';
+                }).catch(error => {
+                    console.error('Error in Promise.all:', error);
+                    document.getElementById('loading').style.display = 'none';
+                    document.getElementById('results').style.display = 'grid';
+                });
+                
+            } catch (error) {
+                const errorMsg = `Error selecting ticker ${ticker}: ${error.message}`;
+                console.error(errorMsg);
+                displayError('stockInfo', errorMsg, 'ticker selection');
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('results').style.display = 'grid';
+            }
         }
 
         async function fetchPredictions(ticker) {
             try {
+                logInfo(`Fetching predictions for ${ticker}`);
                 const response = await fetch(`/predict/${ticker}`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
                 const data = await response.json();
+                
                 if (data.error) {
                     if (!data.has_model) {
                         showWarning(`${ticker} is an S&P 500 stock but no AI model is available for predictions. Showing available information only.`);
                         displayBasicInfo(data);
                     } else {
-                        showError(data.error);
+                        throw new Error(data.error);
                     }
-                    return;
+                    return null;
                 }
+                
                 displayMetrics(data.metrics);
                 displayPredictions(data);
+                logInfo('Predictions displayed successfully for ' + ticker);
+                return data;
+                
             } catch (error) {
-                showError('Failed to fetch predictions: ' + error.message);
+                const errorMsg = `Failed to fetch predictions for ${ticker}: ${error.message}`;
+                console.error(errorMsg);
+                displayError('stockInfo', errorMsg, 'predictions fetch');
+                return null;
             }
         }
 
         async function fetchHistoricalData(ticker) {
             try {
+                logInfo(`Fetching historical data for ${ticker}`);
                 const response = await fetch(`/historical/${ticker}`);
-                const data = await response.json();
-                if (data.error) {
-                    console.log('Historical data not available:', data.error);
-                    document.getElementById('modelSection').style.display = 'none';
-                    return;
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 }
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    logInfo('Historical data not available: ' + data.error);
+                    document.getElementById('modelSection').style.display = 'none';
+                    return null;
+                }
+                
                 historicalData = data;
                 displayModelSection(data);
                 document.getElementById('modelSection').style.display = 'block';
                 document.getElementById('actualSection').style.display = 'none';
-                document.getElementById('closingPriceSection').style.display = 'none';
                 document.getElementById('modelBtn').classList.add('active');
                 document.getElementById('actualBtn').classList.remove('active');
-                document.getElementById('closingPriceBtn').classList.remove('active');
+                
+                logInfo('Historical data fetched successfully for ' + ticker);
+                return data;
+                
             } catch (error) {
-                console.error('Failed to fetch historical data:', error);
-            }
-        }
-
-        async function fetchClosingPriceData(ticker) {
-            try {
-                const response = await fetch(`/closing-prices/${ticker}`);
-                const data = await response.json();
-                if (data.error) {
-                    console.log('Closing price data not available:', data.error);
-                    return;
-                }
-                closingPriceData = data;
-            } catch (error) {
-                console.error('Failed to fetch closing price data:', error);
+                const errorMsg = `Failed to fetch historical data for ${ticker}: ${error.message}`;
+                console.error(errorMsg);
+                displayError('chart', errorMsg, 'historical data fetch');
+                return null;
             }
         }
 
         async function fetchActualPrices(ticker, days) {
             try {
+                logInfo(`Fetching actual prices for ${ticker}, ${days} days`);
                 const response = await fetch(`/prices/${ticker}?range=${days}`);
-                const data = await response.json();
-                if (data.error) {
-                    console.log('Actual prices not available:', data.error);
-                    return null;
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 }
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                logInfo('Actual prices received successfully', {
+                    ticker: ticker,
+                    days: days,
+                    dataPoints: data.dates?.length || 0
+                });
+                
                 return data;
+                
             } catch (error) {
-                console.error('Failed to fetch actual prices:', error);
+                const errorMsg = `Failed to fetch actual prices for ${ticker} (${days} days): ${error.message}`;
+                console.error(errorMsg);
+                displayError('actualChart', errorMsg, 'actual prices fetch');
                 return null;
             }
         }
 
         function displayMetrics(metrics) {
-            const tbody = document.querySelector('#metricsTable tbody');
-            tbody.innerHTML = '';
-            for (const [key, val] of Object.entries(metrics)) {
-                const row = `<tr>
-                    <td>${key}</td>
-                    <td>${val !== null ? val : 'N/A'}</td>
-                </tr>`;
-                tbody.innerHTML += row;
+            try {
+                const tbody = document.querySelector('#metricsTable tbody');
+                tbody.innerHTML = '';
+                for (const [key, val] of Object.entries(metrics)) {
+                    const row = `<tr>
+                        <td>${key}</td>
+                        <td>${val !== null ? val : 'N/A'}</td>
+                    </tr>`;
+                    tbody.innerHTML += row;
+                }
+                logInfo('Metrics displayed successfully');
+            } catch (error) {
+                const errorMsg = `Error displaying metrics: ${error.message}`;
+                console.error(errorMsg);
+                displayError('metricsTable', errorMsg, 'metrics display');
             }
         }
 
         function displayPredictions(data) {
-            const stockInfo = document.getElementById('stockInfo');
-            stockInfo.innerHTML = `
-                <div class="stock-header">
-                    <div class="stock-symbol">${data.ticker}</div>
-                    <div class="current-price">${data.current_price}</div>
-                </div>
-                <div class="predictions-grid">
-                    <div class="prediction-card">
-                        <h3>30 Days</h3>
-                        <div class="prediction-price">${data['30_days'].price}</div>
-                        <div class="prediction-change ${data['30_days'].change >= 0 ? 'positive' : 'negative'}">
-                            ${data['30_days'].change >= 0 ? '+' : ''}${data['30_days'].change} (${data['30_days'].percent_change}%)
+            try {
+                const stockInfo = document.getElementById('stockInfo');
+                stockInfo.innerHTML = 
+                    `<div class="stock-header">
+                        <div class="stock-symbol">${data.ticker}</div>
+                        <div class="current-price">${data.current_price}</div>
+                    </div>
+                    <div class="predictions-grid">
+                        <div class="prediction-card">
+                            <h3>5 Days</h3>
+                            <div class="prediction-price">${data['5_days'].price}</div>
+                            <div class="prediction-change ${data['5_days'].change >= 0 ? 'positive' : 'negative'}">
+                                ${data['5_days'].change >= 0 ? '+' : ''}${data['5_days'].change} (${data['5_days'].percent_change}%)
+                            </div>
+                        </div>
+                        <div class="prediction-card">
+                            <h3>30 Days</h3>
+                            <div class="prediction-price">${data['30_days'].price}</div>
+                            <div class="prediction-change ${data['30_days'].change >= 0 ? 'positive' : 'negative'}">
+                                ${data['30_days'].change >= 0 ? '+' : ''}${data['30_days'].change} (${data['30_days'].percent_change}%)
+                            </div>
+                        </div>
+                        <div class="prediction-card">
+                            <h3>90 Days</h3>
+                            <div class="prediction-price">${data['90_days'].price}</div>
+                            <div class="prediction-change ${data['90_days'].change >= 0 ? 'positive' : 'negative'}">
+                                ${data['90_days'].change >= 0 ? '+' : ''}${data['90_days'].change} (${data['90_days'].percent_change}%)
+                            </div>
+                        </div>
+                        <div class="prediction-card">
+                            <h3>365 Days</h3>
+                            <div class="prediction-price">${data['365_days'].price}</div>
+                            <div class="prediction-change ${data['365_days'].change >= 0 ? 'positive' : 'negative'}">
+                                ${data['365_days'].change >= 0 ? '+' : ''}${data['365_days'].change} (${data['365_days'].percent_change}%)
+                            </div>
+                        </div>
+                        <div class="prediction-card direction-card">
+                            <div class="direction-label">${data.direction.label}</div>
+                            <div class="direction-confidence">Confidence: ${data.direction.confidence}%</div>
                         </div>
                     </div>
-                    <div class="prediction-card">
-                        <h3>60 Days</h3>
-                        <div class="prediction-price">${data['60_days'].price}</div>
-                        <div class="prediction-change ${data['60_days'].change >= 0 ? 'positive' : 'negative'}">
-                            ${data['60_days'].change >= 0 ? '+' : ''}${data['60_days'].change} (${data['60_days'].percent_change}%)
-                        </div>
-                    </div>
-                    <div class="prediction-card">
-                        <h3>90 Days</h3>
-                        <div class="prediction-price">${data['90_days'].price}</div>
-                        <div class="prediction-change ${data['90_days'].change >= 0 ? 'positive' : 'negative'}">
-                            ${data['90_days'].change >= 0 ? '+' : ''}${data['90_days'].change} (${data['90_days'].percent_change}%)
-                        </div>
-                    </div>
-                    <div class="prediction-card">
-                        <h3>120 Days</h3>
-                        <div class="prediction-price">${data['120_days'].price}</div>
-                        <div class="prediction-change ${data['120_days'].change >= 0 ? 'positive' : 'negative'}">
-                            ${data['120_days'].change >= 0 ? '+' : ''}${data['120_days'].change} (${data['120_days'].percent_change}%)
-                        </div>
-                    </div>
-                    <div class="prediction-card direction-card">
-                        <div class="direction-label">${data.direction.label}</div>
-                        <div class="direction-confidence">Confidence: ${data.direction.confidence}%</div>
-                    </div>
-                </div>
-                <div style="text-align: center; color: #7f8c8d; margin-top: 15px; font-style: italic;">
-                    <i class="fas fa-clock"></i> Last Updated: ${data.last_updated}
-                </div>`;
-            document.getElementById('loading').style.display = 'none';
-            document.getElementById('results').style.display = 'grid';
+                    <div style="text-align: center; color: #7f8c8d; margin-top: 15px; font-style: italic;">
+                        <i class="fas fa-clock"></i> Last Updated: ${data.last_updated}
+                    </div>`;
+                logInfo('Predictions displayed successfully');
+            } catch (error) {
+                const errorMsg = `Error displaying predictions: ${error.message}`;
+                console.error(errorMsg);
+                displayError('stockInfo', errorMsg, 'predictions display');
+            }
         }
 
         function displayBasicInfo(data) {
-            const stockInfo = document.getElementById('stockInfo');
-            stockInfo.innerHTML = `
-                <div class="stock-header">
-                    <div class="stock-symbol">${data.ticker}</div>
-                    <div style="font-size: 1.1rem; color: #f39c12;">
-                        <i class="fas fa-info-circle"></i> Basic Info Only
+            try {
+                const stockInfo = document.getElementById('stockInfo');
+                stockInfo.innerHTML = 
+                    `<div class="stock-header">
+                        <div class="stock-symbol">${data.ticker}</div>
+                        <div style="font-size: 1.1rem; color: #f39c12;">
+                            <i class="fas fa-info-circle"></i> Basic Info Only
+                        </div>
                     </div>
-                </div>
-                <div style="text-align: center; padding: 30px; background: #fff3cd; border-radius: 10px; margin: 15px 0;">
-                    <h3 style="color: #856404; margin-bottom: 12px;">
-                        <i class="fas fa-robot"></i> AI Predictions Not Available
-                    </h3>
-                    <p style="color: #856404; margin-bottom: 12px;">
-                        This S&P 500 stock doesn't have a trained AI model yet. You can view basic stock information and fundamentals below.
-                    </p>
-                    <p style="color: #856404; font-size: 0.85rem;">
-                        Look for tickers with green dots (●) for AI predictions.
-                    </p>
-                </div>`;
-            document.getElementById('loading').style.display = 'none';
-            document.getElementById('results').style.display = 'grid';
+                    <div style="text-align: center; padding: 30px; background: #fff3cd; border-radius: 10px; margin: 15px 0;">
+                        <h3 style="color: #856404; margin-bottom: 12px;">
+                            <i class="fas fa-robot"></i> AI Predictions Not Available
+                        </h3>
+                        <p style="color: #856404; margin-bottom: 12px;">
+                            This S&P 500 stock doesn't have a trained AI model yet. You can view basic stock information and fundamentals below.
+                        </p>
+                        <p style="color: #856404; font-size: 0.85rem;">
+                            Look for tickers with green dots (●) for AI predictions.
+                        </p>
+                    </div>`;
+                logInfo('Basic info displayed successfully');
+            } catch (error) {
+                const errorMsg = `Error displaying basic info: ${error.message}`;
+                console.error(errorMsg);
+                displayError('stockInfo', errorMsg, 'basic info display');
+            }
         }
 
         function displayModelSection(data) {
-            const sliceCount = 5;
-            const dates = data.dates.slice(-sliceCount);
-            const actual = data.actual.slice(-sliceCount);
-            const predicted = data.predicted.slice(-sliceCount);
+            try {
+                if (!data || !data.dates || data.dates.length === 0) {
+                    displayError('chart', 'No model data available', 'model section display');
+                    return;
+                }
 
-            const trace1 = {
-                x: dates,
-                y: actual,
-                type: 'scatter',
-                mode: 'lines+markers',
-                name: 'Actual Price',
-                line: { width: 2, color: '#27ae60' },
-                marker: { size: 5, color: '#27ae60' }
-            };
+                const sliceCount = Math.min(5, data.dates.length);
+                const dates = data.dates.slice(-sliceCount);
+                const actual = data.actual.slice(-sliceCount);
+                const predicted = data.predicted.slice(-sliceCount);
 
-            const trace2 = {
-                x: dates,
-                y: predicted,
-                type: 'scatter',
-                mode: 'lines+markers',
-                name: 'Predicted Price',
-                line: { width: 2, dash: 'dash', color: '#667eea' },
-                marker: { size: 5, color: '#667eea' }
-            };
+                const trace1 = {
+                    x: dates,
+                    y: actual,
+                    type: 'scatter',
+                    mode: 'lines+markers',
+                    name: 'Actual Price',
+                    line: { width: 2, color: '#27ae60' },
+                    marker: { size: 5, color: '#27ae60' }
+                };
 
-            const layout = {
-                title: {
-                    text: `${data.ticker} - Model vs Actual (Last 5 Days)`,
-                    font: { size: 16, color: '#2c3e50' }
-                },
-                xaxis: { 
-                    title: 'Date',
-                    gridcolor: '#ecf0f1'
-                },
-                yaxis: { 
-                    title: 'Price ($)',
-                    gridcolor: '#ecf0f1'
-                },
-                hovermode: 'x unified',
-                showlegend: true,
-                margin: { l: 50, r: 30, t: 50, b: 60 },
-                plot_bgcolor: 'rgba(0,0,0,0)',
-                paper_bgcolor: 'rgba(0,0,0,0)'
-            };
+                const trace2 = {
+                    x: dates,
+                    y: predicted,
+                    type: 'scatter',
+                    mode: 'lines+markers',
+                    name: 'Predicted Price',
+                    line: { width: 2, dash: 'dash', color: '#667eea' },
+                    marker: { size: 5, color: '#667eea' }
+                };
 
-            Plotly.newPlot('chart', [trace1, trace2], layout, { responsive: true });
-            populateComparisonTable(data, 60);
+                const layout = {
+                    title: {
+                        text: `${data.ticker} - Model vs Actual (Last ${sliceCount} Days)`,
+                        font: { size: 16, color: '#2c3e50' }
+                    },
+                    xaxis: { 
+                        title: 'Date',
+                        gridcolor: '#ecf0f1'
+                    },
+                    yaxis: { 
+                        title: 'Price ($)',
+                        gridcolor: '#ecf0f1'
+                    },
+                    hovermode: 'x unified',
+                    showlegend: true,
+                    margin: { l: 50, r: 30, t: 50, b: 60 },
+                    plot_bgcolor: 'rgba(0,0,0,0)',
+                    paper_bgcolor: 'rgba(0,0,0,0)'
+                };
+
+                Plotly.newPlot('chart', [trace1, trace2], layout, { responsive: true })
+                    .then(() => {
+                        logInfo('Model chart rendered successfully');
+                        populateComparisonTable(data, 60);
+                    })
+                    .catch(error => {
+                        const errorMsg = `Error rendering model chart: ${error.message}`;
+                        console.error(errorMsg);
+                        displayError('chart', errorMsg, 'model chart rendering');
+                    });
+                    
+            } catch (error) {
+                const errorMsg = `Error in displayModelSection: ${error.message}`;
+                console.error(errorMsg);
+                displayError('chart', errorMsg, 'model section display');
+            }
         }
 
         function populateComparisonTable(data, days) {
-            const tableBody = document.getElementById('tableBody');
-            tableBody.innerHTML = '';
-            const startIdx = data.dates.length - days;
-            for (let i = startIdx; i < data.dates.length; i++) {
-                const date = data.dates[i];
-                const vol = data.volume[i];
-                const actual = data.actual[i];
-                const pred = data.predicted[i];
-                const diff = pred - actual;
-                const pctErr = (diff / actual) * 100;
-                const absErr = Math.abs(pctErr);
-                let accClass, accText;
-                if (absErr <= 2) { 
-                    accClass='accuracy-high'; accText='High'; 
-                } else if (absErr <= 5) { 
-                    accClass='accuracy-medium'; accText='Medium'; 
-                } else { 
-                    accClass='accuracy-low'; accText='Low'; 
+            try {
+                const tableBody = document.getElementById('tableBody');
+                tableBody.innerHTML = '';
+                const startIdx = data.dates.length - days;
+                
+                for (let i = startIdx; i < data.dates.length; i++) {
+                    const date = data.dates[i];
+                    const vol = data.volume[i];
+                    const actual = data.actual[i];
+                    const pred = data.predicted[i];
+                    const diff = pred - actual;
+                    const pctErr = (diff / actual) * 100;
+                    const absErr = Math.abs(pctErr);
+                    
+                    let accClass, accText;
+                    if (absErr <= 2) { 
+                        accClass='accuracy-high'; accText='High'; 
+                    } else if (absErr <= 5) { 
+                        accClass='accuracy-medium'; accText='Medium'; 
+                    } else { 
+                        accClass='accuracy-low'; accText='Low'; 
+                    }
+                    
+                    const diffClass = diff >= 0 ? 'difference-positive' : 'difference-negative';
+                    const sign = diff >= 0 ? '+' : '';
+                    
+                    tableBody.innerHTML += 
+                        `<tr>
+                            <td>${date}</td>
+                            <td>${vol.toLocaleString()}</td>
+                            <td class="price-cell">${actual.toFixed(2)}</td>
+                            <td class="price-cell">${pred.toFixed(2)}</td>
+                            <td class="${diffClass}">${sign}${diff.toFixed(2)}</td>
+                            <td class="${diffClass}">${sign}${pctErr.toFixed(2)}%</td>
+                            <td><span class="${accClass}">${accText}</span></td>
+                        </tr>`;
                 }
-                const diffClass = diff >= 0 ? 'difference-positive' : 'difference-negative';
-                const sign = diff >= 0 ? '+' : '';
-                tableBody.innerHTML += `
-                    <tr>
-                        <td>${date}</td>
-                        <td>${vol.toLocaleString()}</td>
-                        <td class="price-cell">${actual.toFixed(2)}</td>
-                        <td class="price-cell">${pred.toFixed(2)}</td>
-                        <td class="${diffClass}">${sign}${diff.toFixed(2)}</td>
-                        <td class="${diffClass}">${sign}${pctErr.toFixed(2)}%</td>
-                        <td><span class="${accClass}">${accText}</span></td>
-                    </tr>`;
+                logInfo('Comparison table populated successfully');
+            } catch (error) {
+                const errorMsg = `Error populating comparison table: ${error.message}`;
+                console.error(errorMsg);
+                displayError('tableBody', errorMsg, 'comparison table population');
             }
         }
 
         function displayActualSection(data) {
-            const trace = {
-                x: data.dates,
-                y: data.prices,
-                type: 'scatter',
-                mode: 'lines+markers',
-                name: 'Close Price',
-                line: { width: 2, color: '#e74c3c' },
-                marker: { size: 4, color: '#e74c3c' }
-            };
+            try {
+                if (!data || !data.dates || data.dates.length === 0) {
+                    displayError('actualChart', 'No data available for this time range', 'actual section display');
+                    return;
+                }
 
-            const layout = {
-                title: {
-                    text: `${data.ticker} - Actual Close Price (${data.dates.length} Days)`,
-                    font: { size: 16, color: '#2c3e50' }
-                },
-                xaxis: { 
-                    title: 'Date',
-                    gridcolor: '#ecf0f1'
-                },
-                yaxis: { 
-                    title: 'Price ($)',
-                    gridcolor: '#ecf0f1'
-                },
-                hovermode: 'x unified',
-                showlegend: false,
-                margin: { l: 50, r: 30, t: 50, b: 60 },
-                plot_bgcolor: 'rgba(0,0,0,0)',
-                paper_bgcolor: 'rgba(0,0,0,0)'
-            };
+                const trace = {
+                    x: data.dates,
+                    y: data.prices,
+                    type: 'scatter',
+                    mode: 'lines+markers',
+                    name: 'Close Price',
+                    line: { width: 2, color: '#e74c3c' },
+                    marker: { size: 4, color: '#e74c3c' }
+                };
 
-            Plotly.newPlot('actualChart', [trace], layout, { responsive: true });
-        }
+                const layout = {
+                    title: {
+                        text: `${data.ticker} - Actual Close Price (${data.dates.length} Days)`,
+                        font: { size: 16, color: '#2c3e50' }
+                    },
+                    xaxis: { 
+                        title: 'Date',
+                        gridcolor: '#ecf0f1'
+                    },
+                    yaxis: { 
+                        title: 'Price ($)',
+                        gridcolor: '#ecf0f1'
+                    },
+                    hovermode: 'x unified',
+                    showlegend: false,
+                    margin: { l: 50, r: 30, t: 50, b: 60 },
+                    plot_bgcolor: 'rgba(0,0,0,0)',
+                    paper_bgcolor: 'rgba(0,0,0,0)'
+                };
 
-        function showClosingPriceChart(days) {
-            if (!closingPriceData || !closingPriceData.timeframes) {
-                console.log('No closing price data available');
-                return;
+                Plotly.newPlot('actualChart', [trace], layout, { responsive: true })
+                    .then(() => {
+                        logInfo('Actual chart rendered successfully');
+                    })
+                    .catch(error => {
+                        const errorMsg = `Error rendering actual chart: ${error.message}`;
+                        console.error(errorMsg);
+                        displayError('actualChart', errorMsg, 'actual chart rendering');
+                    });
+                    
+            } catch (error) {
+                const errorMsg = `Error in displayActualSection: ${error.message}`;
+                console.error(errorMsg);
+                displayError('actualChart', errorMsg, 'actual section display');
             }
-
-            const timeframeKey = `${days}_days`;
-            const timeframeData = closingPriceData.timeframes[timeframeKey];
-
-            if (!timeframeData || !timeframeData.dates || timeframeData.dates.length === 0) {
-                console.log(`No data available for ${days} days`);
-                return;
-            }
-
-            // Update active button
-            document.querySelectorAll('#closingPriceControls button').forEach(btn => {
-                btn.classList.remove('active');
-            });
-            document.querySelector(`#closingPriceControls button[data-days="${days}"]`).classList.add('active');
-
-            const trace = {
-                x: timeframeData.dates,
-                y: timeframeData.prices,
-                type: 'scatter',
-                mode: 'lines+markers',
-                name: 'Closing Price',
-                line: { width: 3, color: '#3498db' },
-                marker: { size: 5, color: '#2980b9' },
-                fill: 'tonexty',
-                fillcolor: 'rgba(52, 152, 219, 0.1)'
-            };
-
-            const layout = {
-                title: {
-                    text: `${closingPriceData.ticker} - Closing Price Analysis (${days} Days)`,
-                    font: { size: 16, color: '#2c3e50' }
-                },
-                xaxis: { 
-                    title: 'Date',
-                    gridcolor: '#ecf0f1',
-                    tickangle: -45
-                },
-                yaxis: { 
-                    title: 'Closing Price ($)',
-                    gridcolor: '#ecf0f1'
-                },
-                hovermode: 'x unified',
-                showlegend: false,
-                margin: { l: 60, r: 30, t: 60, b: 100 },
-                plot_bgcolor: 'rgba(0,0,0,0)',
-                paper_bgcolor: 'rgba(0,0,0,0)'
-            };
-
-            Plotly.newPlot('closingPriceChart', [trace], layout, { responsive: true });
         }
 
         function displayFundamentals(data) {
-            const cont = document.getElementById('fundamentals');
-            cont.innerHTML = '<h3><i class="fas fa-building"></i> Fundamentals</h3>';
-            function genTable(records, title, icon) {
-                if (!records || !records.length) {
-                    return `<div style="margin: 15px 0;">
+            try {
+                const cont = document.getElementById('fundamentals');
+                cont.innerHTML = '<h3><i class="fas fa-building"></i> Fundamentals</h3>';
+                
+                function genTable(records, title, icon) {
+                    if (!records || !records.length) {
+                        return `<div style="margin: 15px 0;">
+                            <h4><i class="${icon}"></i> ${title}</h4>
+                            <p style="color: #7f8c8d; font-style: italic;">No data available</p>
+                        </div>`;
+                    }
+                    const cols = Object.keys(records[0]);
+                    let html = `<div style="margin: 15px 0;">
                         <h4><i class="${icon}"></i> ${title}</h4>
-                        <p style="color: #7f8c8d; font-style: italic;">No data available</p>
-                    </div>`;
+                        <div class="table-wrapper">
+                            <table class="comparison-table">
+                                <thead><tr>`;
+                    html += cols.map(c => `<th>${c}</th>`).join('');
+                    html += `</tr></thead><tbody>`;
+                    records.forEach(r => {
+                        html += '<tr>' + cols.map(c => `<td>${r[c] || 'N/A'}</td>`).join('') + '</tr>';
+                    });
+                    html += `</tbody></table></div></div>`;
+                    return html;
                 }
-                const cols = Object.keys(records[0]);
-                let html = `<div style="margin: 15px 0;">
-                    <h4><i class="${icon}"></i> ${title}</h4>
-                    <div class="table-wrapper">
-                        <table class="comparison-table">
-                            <thead><tr>`;
-                html += cols.map(c => `<th>${c}</th>`).join('');
-                html += `</tr></thead><tbody>`;
-                records.forEach(r => {
-                    html += '<tr>' + cols.map(c => `<td>${r[c] || 'N/A'}</td>`).join('') + '</tr>';
-                });
-                html += `</tbody></table></div></div>`;
-                return html;
+                
+                cont.innerHTML += genTable(data.earnings, 'Annual Earnings', 'fas fa-calendar-alt');
+                cont.innerHTML += genTable(data.quarterlyEarnings, 'Quarterly Earnings', 'fas fa-chart-pie');
+                cont.innerHTML += genTable(data.balanceSheet.slice(0,1), 'Balance Sheet (Latest)', 'fas fa-balance-scale');
+                cont.innerHTML += genTable(data.financials.slice(0,1), 'Financials (Latest)', 'fas fa-dollar-sign');
+                cont.innerHTML += genTable(data.cashflow.slice(0,1), 'Cash Flow (Latest)', 'fas fa-money-bill-wave');
+                
+                logInfo('Fundamentals displayed successfully');
+            } catch (error) {
+                const errorMsg = `Error displaying fundamentals: ${error.message}`;
+                console.error(errorMsg);
+                displayError('fundamentals', errorMsg, 'fundamentals display');
             }
-            cont.innerHTML += genTable(data.earnings, 'Annual Earnings', 'fas fa-calendar-alt');
-            cont.innerHTML += genTable(data.quarterlyEarnings, 'Quarterly Earnings', 'fas fa-chart-pie');
-            cont.innerHTML += genTable(data.balanceSheet.slice(0,1), 'Balance Sheet (Latest)', 'fas fa-balance-scale');
-            cont.innerHTML += genTable(data.financials.slice(0,1), 'Financials (Latest)', 'fas fa-dollar-sign');
-            cont.innerHTML += genTable(data.cashflow.slice(0,1), 'Cash Flow (Latest)', 'fas fa-money-bill-wave');
         }
 
         async function fetchFundamentals(ticker) {
             try {
+                logInfo(`Fetching fundamentals for ${ticker}`);
                 const response = await fetch(`/fundamentals/${ticker}`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
                 const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
                 displayFundamentals(data);
+                logInfo('Fundamentals fetched and displayed successfully for ' + ticker);
+                return data;
+                
             } catch (error) {
-                console.error('Failed to fetch fundamentals:', error);
-                document.getElementById('fundamentals').innerHTML = '<h3><i class="fas fa-building"></i> Fundamentals</h3><p class="error">Failed to load fundamentals data</p>';
+                const errorMsg = `Failed to load fundamentals for ${ticker}: ${error.message}`;
+                console.error(errorMsg);
+                displayError('fundamentals', errorMsg, 'fundamentals fetch');
+                return null;
             }
         }
 
@@ -1719,55 +1980,94 @@ HTML_TEMPLATE = '''
 
         // Button event listeners
         document.getElementById('modelBtn').addEventListener('click', () => {
-            if (!selectedTicker || !historicalData) return;
-            document.getElementById('modelSection').style.display = 'block';
-            document.getElementById('actualSection').style.display = 'none';
-            document.getElementById('closingPriceSection').style.display = 'none';
-            document.getElementById('modelBtn').classList.add('active');
-            document.getElementById('actualBtn').classList.remove('active');
-            document.getElementById('closingPriceBtn').classList.remove('active');
-            displayModelSection(historicalData);
+            try {
+                if (!selectedTicker) return;
+                document.getElementById('modelSection').style.display = 'block';
+                document.getElementById('actualSection').style.display = 'none';
+                document.getElementById('modelBtn').classList.add('active');
+                document.getElementById('actualBtn').classList.remove('active');
+                
+                if (historicalData) {
+                    displayModelSection(historicalData);
+                } else {
+                    displayError('chart', 'No historical data available for model comparison', 'model section switch');
+                }
+            } catch (error) {
+                const errorMsg = `Error switching to model view: ${error.message}`;
+                console.error(errorMsg);
+                displayError('chart', errorMsg, 'model section switch');
+            }
         });
 
         document.getElementById('actualBtn').addEventListener('click', async () => {
-            if (!selectedTicker) return;
-            document.getElementById('modelSection').style.display = 'none';
-            document.getElementById('actualSection').style.display = 'block';
-            document.getElementById('closingPriceSection').style.display = 'none';
-            document.getElementById('modelBtn').classList.remove('active');
-            document.getElementById('actualBtn').classList.add('active');
-            document.getElementById('closingPriceBtn').classList.remove('active');
-            const days = parseInt(document.getElementById('actualRangeSelect').value);
-            const data = await fetchActualPrices(selectedTicker, days);
-            if (data) displayActualSection(data);
-        });
-
-        document.getElementById('closingPriceBtn').addEventListener('click', () => {
-            if (!selectedTicker || !closingPriceData) return;
-            document.getElementById('modelSection').style.display = 'none';
-            document.getElementById('actualSection').style.display = 'none';
-            document.getElementById('closingPriceSection').style.display = 'block';
-            document.getElementById('modelBtn').classList.remove('active');
-            document.getElementById('actualBtn').classList.remove('active');
-            document.getElementById('closingPriceBtn').classList.add('active');
-            // Show default 5-day chart
-            showClosingPriceChart(5);
+            try {
+                if (!selectedTicker) return;
+                document.getElementById('modelSection').style.display = 'none';
+                document.getElementById('actualSection').style.display = 'block';
+                document.getElementById('modelBtn').classList.remove('active');
+                document.getElementById('actualBtn').classList.add('active');
+                
+                const days = parseInt(document.getElementById('actualRangeSelect').value);
+                const data = await fetchActualPrices(selectedTicker, days);
+                if (data) {
+                    displayActualSection(data);
+                } else {
+                    displayError('actualChart', 'Unable to fetch actual price data', 'actual section switch');
+                }
+            } catch (error) {
+                const errorMsg = `Error switching to actual view: ${error.message}`;
+                console.error(errorMsg);
+                displayError('actualChart', errorMsg, 'actual section switch');
+            }
         });
 
         document.getElementById('tableRangeSelect').addEventListener('change', () => {
-            const days = parseInt(document.getElementById('tableRangeSelect').value);
-            if (historicalData) populateComparisonTable(historicalData, days);
+            try {
+                const days = parseInt(document.getElementById('tableRangeSelect').value);
+                if (historicalData) {
+                    populateComparisonTable(historicalData, days);
+                }
+            } catch (error) {
+                const errorMsg = `Error updating table range: ${error.message}`;
+                console.error(errorMsg);
+                displayError('tableBody', errorMsg, 'table range update');
+            }
         });
 
         document.getElementById('actualRangeSelect').addEventListener('change', async () => {
-            if (!selectedTicker) return;
-            const days = parseInt(document.getElementById('actualRangeSelect').value);
-            const data = await fetchActualPrices(selectedTicker, days);
-            if (data) displayActualSection(data);
+            try {
+                if (!selectedTicker) return;
+                const days = parseInt(document.getElementById('actualRangeSelect').value);
+                const data = await fetchActualPrices(selectedTicker, days);
+                if (data) {
+                    displayActualSection(data);
+                } else {
+                    displayError('actualChart', 'Unable to fetch price data for selected range', 'actual range update');
+                }
+            } catch (error) {
+                const errorMsg = `Error updating actual price range: ${error.message}`;
+                console.error(errorMsg);
+                displayError('actualChart', errorMsg, 'actual range update');
+            }
         });
 
+        // Add debugging to check if Plotly is loaded
         document.addEventListener('DOMContentLoaded', function() {
-            loadTickerData();
+            try {
+                logInfo('DOM loaded, Plotly available: ' + (typeof Plotly !== 'undefined'));
+                if (typeof Plotly === 'undefined') {
+                    console.error('Plotly is not loaded! Charts will not work.');
+                    // Display error message in chart containers
+                    const chartContainers = ['chart', 'actualChart'];
+                    chartContainers.forEach(containerId => {
+                        displayError(containerId, 'Plotly charting library failed to load. Charts will not be available.', 'Plotly initialization');
+                    });
+                }
+                loadTickerData();
+            } catch (error) {
+                const errorMsg = `Error during DOM initialization: ${error.message}`;
+                console.error(errorMsg);
+            }
         });
     </script>
 </body>
@@ -1777,47 +2077,67 @@ HTML_TEMPLATE = '''
 if __name__ == '__main__':
     import os
     os.makedirs('saved_models', exist_ok=True)
-    print("🔍 Loading S&P 500 tickers using PyTickerSymbols...")
-    sp500_tickers = get_sp500_tickers()
-    print(f"📊 Found {len(sp500_tickers)} S&P 500 tickers")
-    # =============================================================================
-    # PUSH NOTIFICATION CONFIGURATION
-    # =============================================================================
-    PUSHOVER_TOKEN = "an1pxdrmpsyfscpng5s3pg8c16qzxz"
-    PUSHOVER_USER = "u3e6rkshozsnaookryxjdwwu5odk75"
-    notification_system = setup_notifications(app, PUSHOVER_TOKEN, PUSHOVER_USER)
-    import socket
-    def find_available_port(start_port=5001):
-        port = start_port
-        while port < start_port + 100:
-            try:
-                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                sock.bind(('localhost', port))
-                sock.close()
-                return port
-            except OSError:
-                port += 1
-        return None
-    available_port = find_available_port(5001)
-    if available_port:
-        print(f"🚀 Starting S&P 500 Stock Prediction App on port {available_port}")
-        print(f"🌐 Access the application at: http://localhost:{available_port}")
-        print(f"📱 Push notifications: {'Enabled' if PUSHOVER_TOKEN and PUSHOVER_USER else 'Disabled (configure Pushover credentials)'}")
-        print(f"🧪 Test notifications at: http://localhost:{available_port}/test-notifications")
-        print(f"📊 Notification history at: http://localhost:{available_port}/notification-history")
-        print(f"📋 Available tickers API: http://localhost:{available_port}/available-tickers")
-        print(f"📈 Closing prices API: http://localhost:{available_port}/closing-prices/<ticker>")
-        trained_models = get_available_models()
-        print(f"\n📈 Ticker Summary:")
-        print(f"   • Total S&P 500 tickers: {len(sp500_tickers)}")
-        print(f"   • Tickers with trained models: {len(trained_models)}")
-        print(f"   • Total available for display: {len(get_available_tickers())}")
-        if trained_models:
-            print(f"\n🤖 Tickers with AI models: {', '.join(sorted(trained_models)[:10])}{'...' if len(trained_models) > 10 else ''}")
-        print(f"\n🆕 New Features:")
-        print(f"   • Closing price analysis for 5, 30, 90, and 365 days")
-        print(f"   • Interactive time frame switching")
-        print(f"   • Enhanced visualization with fill areas")
-        app.run(debug=True, host='0.0.0.0', port=available_port)
-    else:
-        print("❌ No available ports found. Please free up some ports and try again.")
+    
+    try:
+        logger.info("🔍 Loading S&P 500 tickers using PyTickerSymbols...")
+        print("🔍 Loading S&P 500 tickers using PyTickerSymbols...")
+        sp500_tickers = get_sp500_tickers()
+        logger.info(f"📊 Found {len(sp500_tickers)} S&P 500 tickers")
+        print(f"📊 Found {len(sp500_tickers)} S&P 500 tickers")
+        
+        # =============================================================================
+        # PUSH NOTIFICATION CONFIGURATION
+        # =============================================================================
+        PUSHOVER_TOKEN = "an1pxdrmpsyfscpng5s3pg8c16qzxz"
+        PUSHOVER_USER = "u3e6rkshozsnaookryxjdwwu5odk75"
+        notification_system = setup_notifications(app, PUSHOVER_TOKEN, PUSHOVER_USER)
+        
+        import socket
+        def find_available_port(start_port=5001):
+            port = start_port
+            while port < start_port + 100:
+                try:
+                    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    sock.bind(('localhost', port))
+                    sock.close()
+                    return port
+                except OSError:
+                    port += 1
+            return None
+            
+        available_port = find_available_port(5001)
+        if available_port:
+            logger.info(f"🚀 Starting S&P 500 Stock Prediction App on port {available_port}")
+            print(f"🚀 Starting S&P 500 Stock Prediction App on port {available_port}")
+            print(f"🌐 Access the application at: http://localhost:{available_port}")
+            print(f"📱 Push notifications: {'Enabled' if PUSHOVER_TOKEN and PUSHOVER_USER else 'Disabled (configure Pushover credentials)'}")
+            print(f"🧪 Test notifications at: http://localhost:{available_port}/test-notifications")
+            print(f"📊 Notification history at: http://localhost:{available_port}/notification-history")
+            print(f"📋 Available tickers API: http://localhost:{available_port}/available-tickers")
+            
+            trained_models = get_available_models()
+            print(f"\n📈 Ticker Summary:")
+            print(f"   • Total S&P 500 tickers: {len(sp500_tickers)}")
+            print(f"   • Tickers with trained models: {len(trained_models)}")
+            print(f"   • Total available for display: {len(get_available_tickers())}")
+            
+            if trained_models:
+                print(f"\n🤖 Tickers with AI models: {', '.join(sorted(trained_models)[:10])}{'...' if len(trained_models) > 10 else ''}")
+                
+            print(f"\n🆕 New Features:")
+            print(f"   • Flexible date handling for predictions")
+            print(f"   • 5, 30, 90, and 365 day predictions")
+            print(f"   • Improved error handling and logging")
+            
+            logger.info("Starting Flask application...")
+            app.run(debug=True, host='0.0.0.0', port=available_port)
+        else:
+            error_msg = "❌ No available ports found. Please free up some ports and try again."
+            logger.error(error_msg)
+            print(error_msg)
+            
+    except Exception as e:
+        error_msg = f"❌ Critical error during application startup: {e}"
+        logger.error(error_msg)
+        logger.error(traceback.format_exc())
+        print(error_msg)
