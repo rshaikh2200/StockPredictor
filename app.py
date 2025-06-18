@@ -18,11 +18,13 @@ warnings.filterwarnings('ignore')
 
 # Additional imports for TA analysis
 import ta
-import talib
+
+# Update the imports for TA analysis
+import ta
 from ta.utils import dropna
 from ta.volatility import BollingerBands
-from ta.momentum import RSIIndicator, StochasticOscillator, MACD
-from ta.trend import macd_diff, macd_signal
+from ta.momentum import RSIIndicator, StochasticOscillator
+from ta.trend import MACD  # Corrected import for MACD
 import mplfinance as mpf
 import matplotlib.pyplot as plt
 from io import BytesIO
@@ -426,88 +428,93 @@ def fundamentals(ticker):
 
 @app.route('/indicators/<ticker>')
 def technical_indicators(ticker):
-    """Calculate and return technical indicators for a stock"""
+    """Calculate and return technical indicators for a stock, using a full-history warm-up."""
     try:
         range_days = int(request.args.get('range', 30))
-        logger.info(f"Calculating technical indicators for {ticker}, range: {range_days} days")
+        warmup_buffer = 100  # ensure no NaNs from indicator warm-up
         
-        # Fetch data
-        data = get_stock_data(ticker, days_back=range_days + 20)
-        if data is None or data.empty:
+        logger.info(f"Calculating technical indicators for {ticker}, range: {range_days} days (with {warmup_buffer}-day warm-up)")
+        
+        # 1) Fetch full history needed for warm-up + the desired tail
+        full_history = get_stock_data(ticker, days_back=range_days + warmup_buffer)
+        if full_history is None or full_history.empty:
             error_msg = f'Unable to fetch data for {ticker}'
             logger.error(error_msg)
             return jsonify({'error': error_msg})
-            
-        # Take the last 'range_days' entries
-        df = data.tail(range_days).copy()
-        df.set_index('Date', inplace=True)
         
-        # Calculate indicators
-        # 1. Stochastic RSI
-        stoch_rsi = StochasticOscillator(high=df['High'], low=df['Low'], close=df['Close'])
-        df['stoch_rsi_k'] = stoch_rsi.stoch()
-        df['stoch_rsi_d'] = stoch_rsi.stoch_signal()
+        # 2) Set Date as index to run TA on full_history
+        full_history.set_index('Date', inplace=True)
+        df_full = full_history.copy()
         
-        # 2. MACD
-        macd = MACD(close=df['Close'])
-        df['macd'] = macd.macd()
-        df['macd_signal'] = macd.macd_signal()
-        df['macd_hist'] = macd.macd_diff()
+        # 3) Compute indicators on the full dataset
+        # — Stochastic RSI
+        stoch = StochasticOscillator(high=df_full['High'], low=df_full['Low'], close=df_full['Close'])
+        df_full['stoch_rsi_k'] = stoch.stoch()
+        df_full['stoch_rsi_d'] = stoch.stoch_signal()
         
-        # 3. Bollinger Bands
-        bb = BollingerBands(close=df['Close'])
-        df['bb_upper'] = bb.bollinger_hband()
-        df['bb_middle'] = bb.bollinger_mavg()
-        df['bb_lower'] = bb.bollinger_lband()
+        # — MACD
+        macd = MACD(close=df_full['Close'])
+        df_full['macd']        = macd.macd()
+        df_full['macd_signal'] = macd.macd_signal()
+        df_full['macd_hist']   = macd.macd_diff()
         
-        # 4. Double Bottoms (pattern detection)
-        df['double_bottom'] = 0
-        for i in range(2, len(df)):
-            if (df['Low'].iloc[i] < df['Low'].iloc[i-1] and 
-                df['Low'].iloc[i-1] < df['Low'].iloc[i-2] and 
-                df['Close'].iloc[i] > df['Close'].iloc[i-1] and
-                df['Close'].iloc[i] > df['Close'].iloc[i-2]):
-                df['double_bottom'].iloc[i] = 1
+        # — Bollinger Bands
+        bb = BollingerBands(close=df_full['Close'])
+        df_full['bb_upper']  = bb.bollinger_hband()
+        df_full['bb_middle'] = bb.bollinger_mavg()
+        df_full['bb_lower']  = bb.bollinger_lband()
         
-        # 5. Support and Resistance
-        # Simplified version: identify local minima/maxima
-        df['support'] = 0
-        df['resistance'] = 0
-        window = 5  # look for local extrema in 5-day window
+        # — Double-bottom pattern
+        df_full['double_bottom'] = 0
+        for i in range(2, len(df_full)):
+            if (
+                df_full['Low'].iat[i]  < df_full['Low'].iat[i-1]  and
+                df_full['Low'].iat[i-1]< df_full['Low'].iat[i-2]  and
+                df_full['Close'].iat[i]> df_full['Close'].iat[i-1] and
+                df_full['Close'].iat[i]> df_full['Close'].iat[i-2]
+               ):
+                df_full.iat[i, df_full.columns.get_loc('double_bottom')] = 1
         
-        for i in range(window, len(df)-window):
-            if df['Low'].iloc[i] == df['Low'].iloc[i-window:i+window].min():
-                df['support'].iloc[i] = df['Low'].iloc[i]
-            if df['High'].iloc[i] == df['High'].iloc[i-window:i+window].max():
-                df['resistance'].iloc[i] = df['High'].iloc[i]
+        # — Support & Resistance
+        df_full['support']    = 0
+        df_full['resistance'] = 0
+        window = 5
+        for i in range(window, len(df_full)-window):
+            if df_full['Low'].iat[i] == df_full['Low'].iloc[i-window:i+window].min():
+                df_full.iat[i, df_full.columns.get_loc('support')] = df_full['Low'].iat[i]
+            if df_full['High'].iat[i] == df_full['High'].iloc[i-window:i+window].max():
+                df_full.iat[i, df_full.columns.get_loc('resistance')] = df_full['High'].iat[i]
         
-        # Reset index for JSON serialization
-        df = df.reset_index()
+        # 4) Slice off only the last `range_days`
+        df = df_full.tail(range_days).reset_index()
         
-        # Convert to dict for JSON response
+        # 5) Replace any lingering NaN with Python None → JSON null
+        df = df.replace({np.nan: None})
+        
+        # 6) Build JSON-serializable output
         indicators = {
-            'dates': df['Date'].dt.strftime('%Y-%m-%d').tolist(),
-            'open': df['Open'].tolist(),
-            'high': df['High'].tolist(),
-            'low': df['Low'].tolist(),
-            'close': df['Close'].tolist(),
-            'volume': df['Volume'].tolist(),
-            'stoch_rsi_k': df['stoch_rsi_k'].tolist(),
-            'stoch_rsi_d': df['stoch_rsi_d'].tolist(),
-            'macd': df['macd'].tolist(),
-            'macd_signal': df['macd_signal'].tolist(),
-            'macd_hist': df['macd_hist'].tolist(),
-            'bb_upper': df['bb_upper'].tolist(),
-            'bb_middle': df['bb_middle'].tolist(),
-            'bb_lower': df['bb_lower'].tolist(),
+            'dates':         df['Date'].dt.strftime('%Y-%m-%d').tolist(),
+            'open':          df['Open'].tolist(),
+            'high':          df['High'].tolist(),
+            'low':           df['Low'].tolist(),
+            'close':         df['Close'].tolist(),
+            'volume':        df['Volume'].tolist(),
+            'stoch_rsi_k':   df['stoch_rsi_k'].tolist(),
+            'stoch_rsi_d':   df['stoch_rsi_d'].tolist(),
+            'macd':          df['macd'].tolist(),
+            'macd_signal':   df['macd_signal'].tolist(),
+            'macd_hist':     df['macd_hist'].tolist(),
+            'bb_upper':      df['bb_upper'].tolist(),
+            'bb_middle':     df['bb_middle'].tolist(),
+            'bb_lower':      df['bb_lower'].tolist(),
             'double_bottom': df['double_bottom'].tolist(),
-            'support': df['support'].tolist(),
-            'resistance': df['resistance'].tolist(),
+            'support':       df['support'].tolist(),
+            'resistance':    df['resistance'].tolist(),
         }
         
         logger.info(f"Successfully calculated technical indicators for {ticker}")
         return jsonify(indicators)
-        
+    
     except Exception as e:
         error_msg = f"Error calculating technical indicators for {ticker}: {e}"
         logger.error(error_msg)
