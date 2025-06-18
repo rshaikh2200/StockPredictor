@@ -16,6 +16,18 @@ import traceback
 import logging
 warnings.filterwarnings('ignore')
 
+# Additional imports for TA analysis
+import ta
+import talib
+from ta.utils import dropna
+from ta.volatility import BollingerBands
+from ta.momentum import RSIIndicator, StochasticOscillator, MACD
+from ta.trend import macd_diff, macd_signal
+import mplfinance as mpf
+import matplotlib.pyplot as plt
+from io import BytesIO
+import base64
+
 # Additional imports for push notifications
 import requests
 import schedule
@@ -157,7 +169,7 @@ def get_stock_data(ticker, days_back=500):
         data = data.reset_index()
         
         # Ensure we have the required columns
-        required_columns = ['Date', 'Close', 'Volume']
+        required_columns = ['Date', 'Open', 'High', 'Low', 'Close', 'Volume']
         missing_columns = [col for col in required_columns if col not in data.columns]
         
         if missing_columns:
@@ -172,42 +184,6 @@ def get_stock_data(ticker, days_back=500):
         
     except Exception as e:
         error_msg = f"Error fetching data for {ticker}: {e}"
-        logger.error(error_msg)
-        logger.error(traceback.format_exc())
-        print(error_msg)
-        return None
-
-
-def get_historical_comparison(ticker, days=60):
-    """Get historical data for model vs actual comparison with flexible date handling."""
-    end_date = datetime.now()
-    start_date = end_date - timedelta(days=days+100)
-    try:
-        logger.info(f"Fetching historical comparison data for {ticker}: {days} days")
-        
-        data = yf.download(
-            tickers=ticker,
-            start=start_date.strftime("%Y-%m-%d"),
-            end=end_date.strftime("%Y-%m-%d"),
-            progress=False
-        ).reset_index()
-        
-        if data.empty:
-            error_msg = f"No historical data found for {ticker}"
-            logger.error(error_msg)
-            return None
-            
-        # Ensure we have enough data points
-        if len(data) < WINDOW + 1:
-            error_msg = f"Insufficient historical data for {ticker}: {len(data)} rows, need at least {WINDOW + 1}"
-            logger.error(error_msg)
-            return None
-            
-        logger.info(f"Successfully fetched historical comparison data for {ticker}: {len(data)} rows")
-        return data[['Date', 'Close', 'Volume']]
-        
-    except Exception as e:
-        error_msg = f"Error fetching historical data for {ticker}: {e}"
         logger.error(error_msg)
         logger.error(traceback.format_exc())
         print(error_msg)
@@ -354,60 +330,6 @@ def predict_stock(ticker):
         return jsonify({'error': str(e)})
 
 
-@app.route('/historical/<ticker>')
-def historical_comparison(ticker):
-    try:
-        logger.info(f"Fetching historical comparison for {ticker}")
-        
-        model = load_best_model(ticker)
-        if model is None:
-            error_msg = f'No trained model found for {ticker}'
-            logger.error(error_msg)
-            return jsonify({'error': error_msg})
-            
-        data = get_historical_comparison(ticker, days=60)
-        if data is None:
-            error_msg = f'Insufficient historical data for {ticker}'
-            logger.error(error_msg)
-            return jsonify({'error': error_msg})
-            
-        close_prices = data['Close'].values.astype('float32').reshape(-1, 1)
-        scaler = MinMaxScaler(feature_range=(0, 1))
-        scaled_prices = scaler.fit_transform(close_prices)
-        
-        dates = []
-        actual_prices = []
-        predicted_prices = []
-        volumes = []
-        
-        # Start from the point where we have enough data for a full window
-        start_idx = WINDOW
-        for i in range(start_idx, len(data)):
-            window_data = scaled_prices[i-WINDOW:i, 0]
-            X = np.array([window_data]).reshape(1, 1, WINDOW)
-            pred_next, _, _ = model.predict(X, verbose=0)
-            pred_price = scaler.inverse_transform([[pred_next[0][0]]])[0][0]
-            dates.append(data['Date'].iloc[i].strftime('%Y-%m-%d'))
-            actual_prices.append(round(float(data['Close'].iloc[i]), 2))
-            predicted_prices.append(round(float(pred_price), 2))
-            volumes.append(int(data['Volume'].iloc[i]))
-                
-        logger.info(f"Successfully generated historical comparison for {ticker}: {len(dates)} data points")
-        return jsonify({
-            'dates': dates,
-            'actual': actual_prices,
-            'predicted': predicted_prices,
-            'volume': volumes,
-            'ticker': ticker
-        })
-        
-    except Exception as e:
-        error_msg = f"Error in historical_comparison for {ticker}: {e}"
-        logger.error(error_msg)
-        logger.error(traceback.format_exc())
-        return jsonify({'error': str(e)})
-
-
 @app.route('/prices/<ticker>')
 def prices(ticker):
     """Return actual closing prices for a given range of days with flexible date handling."""
@@ -428,7 +350,11 @@ def prices(ticker):
         
         return jsonify({
             'dates': df['Date'].dt.strftime('%Y-%m-%d').tolist(),
-            'prices': df['Close'].round(2).tolist(),
+            'open': df['Open'].tolist(),
+            'high': df['High'].tolist(),
+            'low': df['Low'].tolist(),
+            'close': df['Close'].tolist(),
+            'volume': df['Volume'].tolist(),
             'ticker': ticker
         })
         
@@ -496,6 +422,146 @@ def fundamentals(ticker):
         logger.error(traceback.format_exc())
         print(error_msg)
         return jsonify({'error': str(e)})
+
+
+@app.route('/indicators/<ticker>')
+def technical_indicators(ticker):
+    """Calculate and return technical indicators for a stock"""
+    try:
+        range_days = int(request.args.get('range', 30))
+        logger.info(f"Calculating technical indicators for {ticker}, range: {range_days} days")
+        
+        # Fetch data
+        data = get_stock_data(ticker, days_back=range_days + 20)
+        if data is None or data.empty:
+            error_msg = f'Unable to fetch data for {ticker}'
+            logger.error(error_msg)
+            return jsonify({'error': error_msg})
+            
+        # Take the last 'range_days' entries
+        df = data.tail(range_days).copy()
+        df.set_index('Date', inplace=True)
+        
+        # Calculate indicators
+        # 1. Stochastic RSI
+        stoch_rsi = StochasticOscillator(high=df['High'], low=df['Low'], close=df['Close'])
+        df['stoch_rsi_k'] = stoch_rsi.stoch()
+        df['stoch_rsi_d'] = stoch_rsi.stoch_signal()
+        
+        # 2. MACD
+        macd = MACD(close=df['Close'])
+        df['macd'] = macd.macd()
+        df['macd_signal'] = macd.macd_signal()
+        df['macd_hist'] = macd.macd_diff()
+        
+        # 3. Bollinger Bands
+        bb = BollingerBands(close=df['Close'])
+        df['bb_upper'] = bb.bollinger_hband()
+        df['bb_middle'] = bb.bollinger_mavg()
+        df['bb_lower'] = bb.bollinger_lband()
+        
+        # 4. Double Bottoms (pattern detection)
+        df['double_bottom'] = 0
+        for i in range(2, len(df)):
+            if (df['Low'].iloc[i] < df['Low'].iloc[i-1] and 
+                df['Low'].iloc[i-1] < df['Low'].iloc[i-2] and 
+                df['Close'].iloc[i] > df['Close'].iloc[i-1] and
+                df['Close'].iloc[i] > df['Close'].iloc[i-2]):
+                df['double_bottom'].iloc[i] = 1
+        
+        # 5. Support and Resistance
+        # Simplified version: identify local minima/maxima
+        df['support'] = 0
+        df['resistance'] = 0
+        window = 5  # look for local extrema in 5-day window
+        
+        for i in range(window, len(df)-window):
+            if df['Low'].iloc[i] == df['Low'].iloc[i-window:i+window].min():
+                df['support'].iloc[i] = df['Low'].iloc[i]
+            if df['High'].iloc[i] == df['High'].iloc[i-window:i+window].max():
+                df['resistance'].iloc[i] = df['High'].iloc[i]
+        
+        # Reset index for JSON serialization
+        df = df.reset_index()
+        
+        # Convert to dict for JSON response
+        indicators = {
+            'dates': df['Date'].dt.strftime('%Y-%m-%d').tolist(),
+            'open': df['Open'].tolist(),
+            'high': df['High'].tolist(),
+            'low': df['Low'].tolist(),
+            'close': df['Close'].tolist(),
+            'volume': df['Volume'].tolist(),
+            'stoch_rsi_k': df['stoch_rsi_k'].tolist(),
+            'stoch_rsi_d': df['stoch_rsi_d'].tolist(),
+            'macd': df['macd'].tolist(),
+            'macd_signal': df['macd_signal'].tolist(),
+            'macd_hist': df['macd_hist'].tolist(),
+            'bb_upper': df['bb_upper'].tolist(),
+            'bb_middle': df['bb_middle'].tolist(),
+            'bb_lower': df['bb_lower'].tolist(),
+            'double_bottom': df['double_bottom'].tolist(),
+            'support': df['support'].tolist(),
+            'resistance': df['resistance'].tolist(),
+        }
+        
+        logger.info(f"Successfully calculated technical indicators for {ticker}")
+        return jsonify(indicators)
+        
+    except Exception as e:
+        error_msg = f"Error calculating technical indicators for {ticker}: {e}"
+        logger.error(error_msg)
+        logger.error(traceback.format_exc())
+        return jsonify({'error': str(e)})
+
+
+@app.route('/candlestick/<ticker>')
+def candlestick_plot(ticker):
+    """Generate a candlestick plot for the stock"""
+    try:
+        range_days = int(request.args.get('range', 30))
+        logger.info(f"Generating candlestick plot for {ticker}, range: {range_days} days")
+        
+        # Fetch data
+        data = get_stock_data(ticker, days_back=range_days + 20)
+        if data is None or data.empty:
+            error_msg = f'Unable to fetch data for {ticker}'
+            logger.error(error_msg)
+            return jsonify({'error': error_msg})
+            
+        # Take the last 'range_days' entries
+        df = data.tail(range_days)
+        df.set_index('Date', inplace=True)
+        
+        # Create candlestick plot
+        fig = go.Figure(data=[go.Candlestick(
+            x=df.index,
+            open=df['Open'],
+            high=df['High'],
+            low=df['Low'],
+            close=df['Close'],
+            name='Candlesticks'
+        )])
+        
+        fig.update_layout(
+            title=f'{ticker} Candlestick Chart ({range_days} Days)',
+            xaxis_title='Date',
+            yaxis_title='Price',
+            xaxis_rangeslider_visible=False,
+            template='plotly_white'
+        )
+        
+        # Convert to JSON
+        graph_json = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+        logger.info(f"Successfully generated candlestick plot for {ticker}")
+        return jsonify({'plot': graph_json})
+        
+    except Exception as e:
+        error_msg = f"Error generating candlestick plot for {ticker}: {e}"
+        logger.error(error_msg)
+        logger.error(traceback.format_exc())
+        return jsonify({'error': str(e)})
+
 
 # =============================================================================
 # PUSH NOTIFICATION SYSTEM (PUSHOVER)
@@ -1217,18 +1283,19 @@ HTML_TEMPLATE = '''
             color: #fff;
         }
 
-        #actualControls {
+        #taControls {
             display: flex;
             align-items: center;
             gap: 10px;
             margin-bottom: 12px;
         }
 
-        #actualControls select {
+        #taControls select {
             padding: 5px 8px;
             font-size: 0.85rem;
             border-radius: 6px;
             border: 1px solid #ccc;
+            width: 200px;
         }
 
         .error-display {
@@ -1274,7 +1341,7 @@ HTML_TEMPLATE = '''
     <div class="container">
         <div class="header">
             <h1><i class="fas fa-chart-line"></i> S&P 500 Stock Price Predictor</h1>
-            <p>AI-Powered Stock Price Predictions using LSTM Neural Networks</p>
+            <p>AI-Powered Stock Price Predictions & Technical Analysis</p>
         </div>
         
         <div class="content">
@@ -1337,55 +1404,30 @@ HTML_TEMPLATE = '''
                 </div>
                 
                 <div class="section-card">
-                    <div class="plot-switcher">
-                        <button id="modelBtn" class="active">Model vs Actual</button>
-                        <button id="actualBtn">Actual Price</button>
-                    </div>
+                    <h3><i class="fas fa-chart-candlestick"></i> Technical Analysis</h3>
                     
-                    <div id="modelSection">
-                        <h3><i class="fas fa-chart-area"></i> Model Predictions vs Actual Prices</h3>
-                        <div id="chart"></div>
+                    <div id="taControls">
+                        <label for="taRangeSelect">View Price for:</label>
+                        <select id="taRangeSelect">
+                            <option value="5">5 Days</option>
+                            <option value="30" selected>30 Days</option>
+                            <option value="90">90 Days</option>
+                            <option value="365">365 Days</option>
+                        </select>
                         
-                        <div id="tableContainer" style="margin-top: 20px;">
-                            <div class="table-header">
-                                <label for="tableRangeSelect">Days:</label>
-                                <select id="tableRangeSelect">
-                                    <option value="10">10 Days</option>
-                                    <option value="30">30 Days</option>
-                                    <option value="60" selected>60 Days</option>
-                                </select>
-                            </div>
-                            <div class="table-wrapper">
-                                <table id="comparisonTable" class="comparison-table">
-                                    <thead>
-                                        <tr>
-                                            <th>Date</th>
-                                            <th>Volume</th>
-                                            <th>Actual Price</th>
-                                            <th>Predicted Price</th>
-                                            <th>Difference</th>
-                                            <th>% Error</th>
-                                            <th>Accuracy</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="tableBody"></tbody>
-                                </table>
-                            </div>
-                        </div>
+                        <label for="indicatorSelect">Indicator:</label>
+                        <select id="indicatorSelect">
+                            <option value="none">No Indicator</option>
+                            <option value="candlestick">Candlestick Only</option>
+                            <option value="stoch_rsi">Stochastic RSI</option>
+                            <option value="macd">MACD</option>
+                            <option value="bollinger">Bollinger Bands</option>
+                            <option value="double_bottom">Double Bottoms</option>
+                            <option value="support_resistance">Support & Resistance</option>
+                        </select>
                     </div>
                     
-                    <div id="actualSection" style="display: none; margin-top: 20px;">
-                        <div id="actualControls">
-                            <label for="actualRangeSelect">View Actual Price for:</label>
-                            <select id="actualRangeSelect">
-                                <option value="5">5 Days</option>
-                                <option value="30" selected>30 Days</option>
-                                <option value="90">90 Days</option>
-                                <option value="365">365 Days</option>
-                            </select>
-                        </div>
-                        <div id="actualChart"></div>
-                    </div>
+                    <div id="taChart"></div>
                 </div>
                 
                 <div class="section-card" id="fundamentals">
@@ -1399,7 +1441,8 @@ HTML_TEMPLATE = '''
     <script>
         let selectedTicker = null;
         let tickerData = [];
-        let historicalData = null;
+        let priceData = null;
+        let indicatorData = null;
 
         // Enhanced error display function
         function displayError(containerId, error, context = '') {
@@ -1487,7 +1530,8 @@ HTML_TEMPLATE = '''
                 document.getElementById('results').style.display = 'none';
                 
                 // Reset data
-                historicalData = null;
+                priceData = null;
+                indicatorData = null;
                 
                 logInfo(`Selecting ticker: ${ticker}`);
                 
@@ -1497,8 +1541,8 @@ HTML_TEMPLATE = '''
                         console.error('Predictions failed:', e);
                         return null;
                     }),
-                    fetchHistoricalData(ticker).catch(e => {
-                        console.error('Historical data failed:', e);
+                    fetchPriceData(ticker).catch(e => {
+                        console.error('Price data failed:', e);
                         return null;
                     }),
                     fetchFundamentals(ticker).catch(e => {
@@ -1507,7 +1551,7 @@ HTML_TEMPLATE = '''
                     })
                 ]).then(() => {
                     logInfo('All data fetching complete for ' + ticker);
-                    logInfo('Historical data available: ' + !!historicalData);
+                    logInfo('Price data available: ' + !!priceData);
                     
                     // Show results after all data is loaded
                     document.getElementById('loading').style.display = 'none';
@@ -1561,44 +1605,10 @@ HTML_TEMPLATE = '''
             }
         }
 
-        async function fetchHistoricalData(ticker) {
+        async function fetchPriceData(ticker) {
             try {
-                logInfo(`Fetching historical data for ${ticker}`);
-                const response = await fetch(`/historical/${ticker}`);
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }
-                
-                const data = await response.json();
-                
-                if (data.error) {
-                    logInfo('Historical data not available: ' + data.error);
-                    document.getElementById('modelSection').style.display = 'none';
-                    return null;
-                }
-                
-                historicalData = data;
-                displayModelSection(data);
-                document.getElementById('modelSection').style.display = 'block';
-                document.getElementById('actualSection').style.display = 'none';
-                document.getElementById('modelBtn').classList.add('active');
-                document.getElementById('actualBtn').classList.remove('active');
-                
-                logInfo('Historical data fetched successfully for ' + ticker);
-                return data;
-                
-            } catch (error) {
-                const errorMsg = `Failed to fetch historical data for ${ticker}: ${error.message}`;
-                console.error(errorMsg);
-                displayError('chart', errorMsg, 'historical data fetch');
-                return null;
-            }
-        }
-
-        async function fetchActualPrices(ticker, days) {
-            try {
-                logInfo(`Fetching actual prices for ${ticker}, ${days} days`);
+                const days = parseInt(document.getElementById('taRangeSelect').value);
+                logInfo(`Fetching price data for ${ticker}, ${days} days`);
                 const response = await fetch(`/prices/${ticker}?range=${days}`);
                 
                 if (!response.ok) {
@@ -1611,18 +1621,57 @@ HTML_TEMPLATE = '''
                     throw new Error(data.error);
                 }
                 
-                logInfo('Actual prices received successfully', {
+                priceData = data;
+                logInfo('Price data received successfully', {
                     ticker: ticker,
                     days: days,
                     dataPoints: data.dates?.length || 0
                 });
                 
+                // Now fetch indicators for the same range
+                await fetchIndicatorData(ticker, days);
+                
                 return data;
                 
             } catch (error) {
-                const errorMsg = `Failed to fetch actual prices for ${ticker} (${days} days): ${error.message}`;
+                const errorMsg = `Failed to fetch price data for ${ticker}: ${error.message}`;
                 console.error(errorMsg);
-                displayError('actualChart', errorMsg, 'actual prices fetch');
+                displayError('taChart', errorMsg, 'price data fetch');
+                return null;
+            }
+        }
+
+        async function fetchIndicatorData(ticker, days) {
+            try {
+                logInfo(`Fetching indicators for ${ticker}, ${days} days`);
+                const response = await fetch(`/indicators/${ticker}?range=${days}`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                indicatorData = data;
+                logInfo('Indicator data received successfully', {
+                    ticker: ticker,
+                    days: days,
+                    dataPoints: data.dates?.length || 0
+                });
+                
+                // Update the chart with the selected indicator
+                updateTechnicalChart();
+                
+                return data;
+                
+            } catch (error) {
+                const errorMsg = `Failed to fetch indicators for ${ticker}: ${error.message}`;
+                console.error(errorMsg);
+                displayError('taChart', errorMsg, 'indicator fetch');
                 return null;
             }
         }
@@ -1728,173 +1777,229 @@ HTML_TEMPLATE = '''
             }
         }
 
-        function displayModelSection(data) {
+        function updateTechnicalChart() {
             try {
-                if (!data || !data.dates || data.dates.length === 0) {
-                    displayError('chart', 'No model data available', 'model section display');
+                const indicator = document.getElementById('indicatorSelect').value;
+                const container = document.getElementById('taChart');
+                
+                if (!priceData || !priceData.dates || priceData.dates.length === 0) {
+                    displayError('taChart', 'No price data available', 'technical chart update');
                     return;
                 }
-
-                const sliceCount = Math.min(5, data.dates.length);
-                const dates = data.dates.slice(-sliceCount);
-                const actual = data.actual.slice(-sliceCount);
-                const predicted = data.predicted.slice(-sliceCount);
-
-                const trace1 = {
-                    x: dates,
-                    y: actual,
-                    type: 'scatter',
-                    mode: 'lines+markers',
-                    name: 'Actual Price',
-                    line: { width: 2, color: '#27ae60' },
-                    marker: { size: 5, color: '#27ae60' }
+                
+                // Create candlestick trace
+                const candlestickTrace = {
+                    x: priceData.dates,
+                    open: priceData.open,
+                    high: priceData.high,
+                    low: priceData.low,
+                    close: priceData.close,
+                    type: 'candlestick',
+                    name: 'Price',
+                    increasing: { line: { color: '#27ae60' }, fillcolor: '#27ae60' },
+                    decreasing: { line: { color: '#e74c3c' }, fillcolor: '#e74c3c' }
                 };
-
-                const trace2 = {
-                    x: dates,
-                    y: predicted,
-                    type: 'scatter',
-                    mode: 'lines+markers',
-                    name: 'Predicted Price',
-                    line: { width: 2, dash: 'dash', color: '#667eea' },
-                    marker: { size: 5, color: '#667eea' }
-                };
-
+                
+                const data = [candlestickTrace];
                 const layout = {
-                    title: {
-                        text: `${data.ticker} - Model vs Actual (Last ${sliceCount} Days)`,
-                        font: { size: 16, color: '#2c3e50' }
-                    },
-                    xaxis: { 
-                        title: 'Date',
-                        gridcolor: '#ecf0f1'
-                    },
-                    yaxis: { 
-                        title: 'Price ($)',
-                        gridcolor: '#ecf0f1'
-                    },
-                    hovermode: 'x unified',
+                    title: `${selectedTicker} Technical Analysis`,
+                    xaxis: { title: 'Date', rangeslider: { visible: false } },
+                    yaxis: { title: 'Price' },
                     showlegend: true,
                     margin: { l: 50, r: 30, t: 50, b: 60 },
                     plot_bgcolor: 'rgba(0,0,0,0)',
                     paper_bgcolor: 'rgba(0,0,0,0)'
                 };
-
-                Plotly.newPlot('chart', [trace1, trace2], layout, { responsive: true })
-                    .then(() => {
-                        logInfo('Model chart rendered successfully');
-                        populateComparisonTable(data, 60);
-                    })
-                    .catch(error => {
-                        const errorMsg = `Error rendering model chart: ${error.message}`;
-                        console.error(errorMsg);
-                        displayError('chart', errorMsg, 'model chart rendering');
-                    });
-                    
-            } catch (error) {
-                const errorMsg = `Error in displayModelSection: ${error.message}`;
-                console.error(errorMsg);
-                displayError('chart', errorMsg, 'model section display');
-            }
-        }
-
-        function populateComparisonTable(data, days) {
-            try {
-                const tableBody = document.getElementById('tableBody');
-                tableBody.innerHTML = '';
-                const startIdx = data.dates.length - days;
                 
-                for (let i = startIdx; i < data.dates.length; i++) {
-                    const date = data.dates[i];
-                    const vol = data.volume[i];
-                    const actual = data.actual[i];
-                    const pred = data.predicted[i];
-                    const diff = pred - actual;
-                    const pctErr = (diff / actual) * 100;
-                    const absErr = Math.abs(pctErr);
-                    
-                    let accClass, accText;
-                    if (absErr <= 2) { 
-                        accClass='accuracy-high'; accText='High'; 
-                    } else if (absErr <= 5) { 
-                        accClass='accuracy-medium'; accText='Medium'; 
-                    } else { 
-                        accClass='accuracy-low'; accText='Low'; 
+                // Add selected indicator
+                if (indicator !== 'none' && indicator !== 'candlestick' && indicatorData) {
+                    switch(indicator) {
+                        case 'stoch_rsi':
+                            if (indicatorData.stoch_rsi_k && indicatorData.stoch_rsi_d) {
+                                data.push({
+                                    x: indicatorData.dates,
+                                    y: indicatorData.stoch_rsi_k,
+                                    type: 'scatter',
+                                    mode: 'lines',
+                                    name: 'Stoch RSI %K',
+                                    line: { color: '#3498db', width: 2 },
+                                    yaxis: 'y2'
+                                });
+                                data.push({
+                                    x: indicatorData.dates,
+                                    y: indicatorData.stoch_rsi_d,
+                                    type: 'scatter',
+                                    mode: 'lines',
+                                    name: 'Stoch RSI %D',
+                                    line: { color: '#9b59b6', width: 2, dash: 'dash' },
+                                    yaxis: 'y2'
+                                });
+                                layout.yaxis2 = {
+                                    title: 'Stoch RSI',
+                                    overlaying: 'y',
+                                    side: 'right',
+                                    range: [0, 100]
+                                };
+                            }
+                            break;
+                            
+                        case 'macd':
+                            if (indicatorData.macd && indicatorData.macd_signal && indicatorData.macd_hist) {
+                                // MACD lines
+                                data.push({
+                                    x: indicatorData.dates,
+                                    y: indicatorData.macd,
+                                    type: 'scatter',
+                                    mode: 'lines',
+                                    name: 'MACD',
+                                    line: { color: '#3498db', width: 2 },
+                                    yaxis: 'y2'
+                                });
+                                data.push({
+                                    x: indicatorData.dates,
+                                    y: indicatorData.macd_signal,
+                                    type: 'scatter',
+                                    mode: 'lines',
+                                    name: 'Signal',
+                                    line: { color: '#e74c3c', width: 2 },
+                                    yaxis: 'y2'
+                                });
+                                
+                                // MACD histogram
+                                const colors = indicatorData.macd_hist.map(val => val >= 0 ? '#27ae60' : '#e74c3c');
+                                data.push({
+                                    x: indicatorData.dates,
+                                    y: indicatorData.macd_hist,
+                                    type: 'bar',
+                                    name: 'MACD Hist',
+                                    marker: { color: colors },
+                                    yaxis: 'y2'
+                                });
+                                
+                                layout.yaxis2 = {
+                                    title: 'MACD',
+                                    overlaying: 'y',
+                                    side: 'right'
+                                };
+                            }
+                            break;
+                            
+                        case 'bollinger':
+                            if (indicatorData.bb_upper && indicatorData.bb_middle && indicatorData.bb_lower) {
+                                data.push({
+                                    x: indicatorData.dates,
+                                    y: indicatorData.bb_upper,
+                                    type: 'scatter',
+                                    mode: 'lines',
+                                    name: 'BB Upper',
+                                    line: { color: '#9b59b6', width: 1 }
+                                });
+                                data.push({
+                                    x: indicatorData.dates,
+                                    y: indicatorData.bb_middle,
+                                    type: 'scatter',
+                                    mode: 'lines',
+                                    name: 'BB Middle',
+                                    line: { color: '#3498db', width: 1 }
+                                });
+                                data.push({
+                                    x: indicatorData.dates,
+                                    y: indicatorData.bb_lower,
+                                    type: 'scatter',
+                                    mode: 'lines',
+                                    name: 'BB Lower',
+                                    line: { color: '#9b59b6', width: 1 }
+                                });
+                            }
+                            break;
+                            
+                        case 'double_bottom':
+                            if (indicatorData.double_bottom) {
+                                const doubleBottomPoints = [];
+                                for (let i = 0; i < indicatorData.dates.length; i++) {
+                                    if (indicatorData.double_bottom[i] === 1) {
+                                        doubleBottomPoints.push({
+                                            x: indicatorData.dates[i],
+                                            y: indicatorData.low[i],
+                                            text: 'Double Bottom',
+                                            showarrow: true,
+                                            arrowhead: 2,
+                                            ax: 0,
+                                            ay: -30,
+                                            bgcolor: 'rgba(46, 204, 113, 0.8)',
+                                            bordercolor: 'rgba(0,0,0,0)',
+                                            borderpad: 4,
+                                            font: { size: 12, color: '#fff' }
+                                        });
+                                    }
+                                }
+                                layout.annotations = doubleBottomPoints;
+                            }
+                            break;
+                            
+                        case 'support_resistance':
+                            if (indicatorData.support && indicatorData.resistance) {
+                                // Support points
+                                const supportPoints = indicatorData.support.map((val, i) => {
+                                    if (val > 0) {
+                                        return {
+                                            x: indicatorData.dates[i],
+                                            y: val,
+                                            text: 'Support',
+                                            showarrow: true,
+                                            arrowhead: 2,
+                                            ax: 0,
+                                            ay: 30,
+                                            bgcolor: 'rgba(46, 204, 113, 0.8)',
+                                            bordercolor: 'rgba(0,0,0,0)',
+                                            borderpad: 4,
+                                            font: { size: 12, color: '#fff' }
+                                        };
+                                    }
+                                    return null;
+                                }).filter(ann => ann !== null);
+                                
+                                // Resistance points
+                                const resistancePoints = indicatorData.resistance.map((val, i) => {
+                                    if (val > 0) {
+                                        return {
+                                            x: indicatorData.dates[i],
+                                            y: val,
+                                            text: 'Resistance',
+                                            showarrow: true,
+                                            arrowhead: 2,
+                                            ax: 0,
+                                            ay: -30,
+                                            bgcolor: 'rgba(231, 76, 60, 0.8)',
+                                            bordercolor: 'rgba(0,0,0,0)',
+                                            borderpad: 4,
+                                            font: { size: 12, color: '#fff' }
+                                        };
+                                    }
+                                    return null;
+                                }).filter(ann => ann !== null);
+                                
+                                layout.annotations = [...supportPoints, ...resistancePoints];
+                            }
+                            break;
                     }
-                    
-                    const diffClass = diff >= 0 ? 'difference-positive' : 'difference-negative';
-                    const sign = diff >= 0 ? '+' : '';
-                    
-                    tableBody.innerHTML += 
-                        `<tr>
-                            <td>${date}</td>
-                            <td>${vol.toLocaleString()}</td>
-                            <td class="price-cell">${actual.toFixed(2)}</td>
-                            <td class="price-cell">${pred.toFixed(2)}</td>
-                            <td class="${diffClass}">${sign}${diff.toFixed(2)}</td>
-                            <td class="${diffClass}">${sign}${pctErr.toFixed(2)}%</td>
-                            <td><span class="${accClass}">${accText}</span></td>
-                        </tr>`;
                 }
-                logInfo('Comparison table populated successfully');
-            } catch (error) {
-                const errorMsg = `Error populating comparison table: ${error.message}`;
-                console.error(errorMsg);
-                displayError('tableBody', errorMsg, 'comparison table population');
-            }
-        }
-
-        function displayActualSection(data) {
-            try {
-                if (!data || !data.dates || data.dates.length === 0) {
-                    displayError('actualChart', 'No data available for this time range', 'actual section display');
-                    return;
-                }
-
-                const trace = {
-                    x: data.dates,
-                    y: data.prices,
-                    type: 'scatter',
-                    mode: 'lines+markers',
-                    name: 'Close Price',
-                    line: { width: 2, color: '#e74c3c' },
-                    marker: { size: 4, color: '#e74c3c' }
-                };
-
-                const layout = {
-                    title: {
-                        text: `${data.ticker} - Actual Close Price (${data.dates.length} Days)`,
-                        font: { size: 16, color: '#2c3e50' }
-                    },
-                    xaxis: { 
-                        title: 'Date',
-                        gridcolor: '#ecf0f1'
-                    },
-                    yaxis: { 
-                        title: 'Price ($)',
-                        gridcolor: '#ecf0f1'
-                    },
-                    hovermode: 'x unified',
-                    showlegend: false,
-                    margin: { l: 50, r: 30, t: 50, b: 60 },
-                    plot_bgcolor: 'rgba(0,0,0,0)',
-                    paper_bgcolor: 'rgba(0,0,0,0)'
-                };
-
-                Plotly.newPlot('actualChart', [trace], layout, { responsive: true })
+                
+                // Plot the chart
+                Plotly.newPlot('taChart', data, layout, { responsive: true })
                     .then(() => {
-                        logInfo('Actual chart rendered successfully');
+                        logInfo('Technical chart updated successfully');
                     })
                     .catch(error => {
-                        const errorMsg = `Error rendering actual chart: ${error.message}`;
+                        const errorMsg = `Error updating technical chart: ${error.message}`;
                         console.error(errorMsg);
-                        displayError('actualChart', errorMsg, 'actual chart rendering');
+                        displayError('taChart', errorMsg, 'technical chart update');
                     });
                     
             } catch (error) {
-                const errorMsg = `Error in displayActualSection: ${error.message}`;
+                const errorMsg = `Error updating technical chart: ${error.message}`;
                 console.error(errorMsg);
-                displayError('actualChart', errorMsg, 'actual section display');
+                displayError('taChart', errorMsg, 'technical chart update');
             }
         }
 
@@ -1978,76 +2083,26 @@ HTML_TEMPLATE = '''
             stockInfo.innerHTML = `<div class="warning"><i class="fas fa-exclamation-triangle"></i> ${message}</div>`;
         }
 
-        // Button event listeners
-        document.getElementById('modelBtn').addEventListener('click', () => {
+        // Event listeners for controls
+        document.getElementById('taRangeSelect').addEventListener('change', async () => {
             try {
                 if (!selectedTicker) return;
-                document.getElementById('modelSection').style.display = 'block';
-                document.getElementById('actualSection').style.display = 'none';
-                document.getElementById('modelBtn').classList.add('active');
-                document.getElementById('actualBtn').classList.remove('active');
-                
-                if (historicalData) {
-                    displayModelSection(historicalData);
-                } else {
-                    displayError('chart', 'No historical data available for model comparison', 'model section switch');
-                }
+                const days = parseInt(document.getElementById('taRangeSelect').value);
+                await fetchPriceData(selectedTicker);
             } catch (error) {
-                const errorMsg = `Error switching to model view: ${error.message}`;
+                const errorMsg = `Error changing range: ${error.message}`;
                 console.error(errorMsg);
-                displayError('chart', errorMsg, 'model section switch');
+                displayError('taChart', errorMsg, 'range change');
             }
         });
 
-        document.getElementById('actualBtn').addEventListener('click', async () => {
+        document.getElementById('indicatorSelect').addEventListener('change', () => {
             try {
-                if (!selectedTicker) return;
-                document.getElementById('modelSection').style.display = 'none';
-                document.getElementById('actualSection').style.display = 'block';
-                document.getElementById('modelBtn').classList.remove('active');
-                document.getElementById('actualBtn').classList.add('active');
-                
-                const days = parseInt(document.getElementById('actualRangeSelect').value);
-                const data = await fetchActualPrices(selectedTicker, days);
-                if (data) {
-                    displayActualSection(data);
-                } else {
-                    displayError('actualChart', 'Unable to fetch actual price data', 'actual section switch');
-                }
+                updateTechnicalChart();
             } catch (error) {
-                const errorMsg = `Error switching to actual view: ${error.message}`;
+                const errorMsg = `Error changing indicator: ${error.message}`;
                 console.error(errorMsg);
-                displayError('actualChart', errorMsg, 'actual section switch');
-            }
-        });
-
-        document.getElementById('tableRangeSelect').addEventListener('change', () => {
-            try {
-                const days = parseInt(document.getElementById('tableRangeSelect').value);
-                if (historicalData) {
-                    populateComparisonTable(historicalData, days);
-                }
-            } catch (error) {
-                const errorMsg = `Error updating table range: ${error.message}`;
-                console.error(errorMsg);
-                displayError('tableBody', errorMsg, 'table range update');
-            }
-        });
-
-        document.getElementById('actualRangeSelect').addEventListener('change', async () => {
-            try {
-                if (!selectedTicker) return;
-                const days = parseInt(document.getElementById('actualRangeSelect').value);
-                const data = await fetchActualPrices(selectedTicker, days);
-                if (data) {
-                    displayActualSection(data);
-                } else {
-                    displayError('actualChart', 'Unable to fetch price data for selected range', 'actual range update');
-                }
-            } catch (error) {
-                const errorMsg = `Error updating actual price range: ${error.message}`;
-                console.error(errorMsg);
-                displayError('actualChart', errorMsg, 'actual range update');
+                displayError('taChart', errorMsg, 'indicator change');
             }
         });
 
@@ -2058,7 +2113,7 @@ HTML_TEMPLATE = '''
                 if (typeof Plotly === 'undefined') {
                     console.error('Plotly is not loaded! Charts will not work.');
                     // Display error message in chart containers
-                    const chartContainers = ['chart', 'actualChart'];
+                    const chartContainers = ['taChart'];
                     chartContainers.forEach(containerId => {
                         displayError(containerId, 'Plotly charting library failed to load. Charts will not be available.', 'Plotly initialization');
                     });
@@ -2125,9 +2180,10 @@ if __name__ == '__main__':
                 print(f"\n🤖 Tickers with AI models: {', '.join(sorted(trained_models)[:10])}{'...' if len(trained_models) > 10 else ''}")
                 
             print(f"\n🆕 New Features:")
-            print(f"   • Flexible date handling for predictions")
-            print(f"   • 5, 30, 90, and 365 day predictions")
-            print(f"   • Improved error handling and logging")
+            print(f"   • Candlestick charts with technical indicators")
+            print(f"   • Stochastic RSI, MACD, Bollinger Bands")
+            print(f"   • Double Bottom pattern detection")
+            print(f"   • Support and Resistance levels")
             
             logger.info("Starting Flask application...")
             app.run(debug=True, host='0.0.0.0', port=available_port)

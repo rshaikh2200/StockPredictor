@@ -9,3 +9,4 @@ plotly
 requests
 schedule
 gunicorn
+ta

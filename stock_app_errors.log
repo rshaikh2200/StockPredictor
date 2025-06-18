@@ -1,0 +1,590 @@
+2025-06-18 00:49:43,625 - INFO - 🔍 Loading S&P 500 tickers using PyTickerSymbols...
+2025-06-18 00:49:43,626 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:43,627 - INFO - 📊 Found 499 S&P 500 tickers
+2025-06-18 00:49:43,629 - INFO - 📱 Push notification scheduler started!
+2025-06-18 00:49:43,630 - INFO - 🚀 Starting S&P 500 Stock Prediction App on port 5001
+2025-06-18 00:49:43,633 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:43,635 - INFO - Starting Flask application...
+2025-06-18 00:49:43,642 - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://10.0.5.226:5001
+2025-06-18 00:49:43,642 - INFO - [33mPress CTRL+C to quit[0m
+2025-06-18 00:49:43,643 - INFO -  * Restarting with stat
+2025-06-18 00:49:47,488 - INFO - 🔍 Loading S&P 500 tickers using PyTickerSymbols...
+2025-06-18 00:49:47,489 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:47,489 - INFO - 📊 Found 499 S&P 500 tickers
+2025-06-18 00:49:47,491 - INFO - 📱 Push notification scheduler started!
+2025-06-18 00:49:47,492 - INFO - 🚀 Starting S&P 500 Stock Prediction App on port 5002
+2025-06-18 00:49:47,494 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:47,494 - INFO - Starting Flask application...
+2025-06-18 00:49:47,498 - WARNING -  * Debugger is active!
+2025-06-18 00:49:47,506 - INFO -  * Debugger PIN: 122-700-463
+2025-06-18 00:49:52,297 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,309 - INFO - 127.0.0.1 - - [18/Jun/2025 00:49:52] "GET / HTTP/1.1" 200 -
+2025-06-18 00:49:52,715 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,716 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,717 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,718 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,719 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,720 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,721 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,722 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,724 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,725 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,726 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,727 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,729 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,730 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,731 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,732 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,733 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,735 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,736 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,737 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,738 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,739 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,741 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,742 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,743 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,744 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,745 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,746 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,747 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,749 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,750 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,751 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,752 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,753 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,755 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,756 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,757 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,758 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,759 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,761 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,761 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,762 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,763 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,765 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,766 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,767 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,768 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,769 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,771 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,772 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,773 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,774 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,775 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,777 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,778 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,779 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,780 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,781 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,783 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,784 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,785 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,786 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,788 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,789 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,791 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,795 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,799 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,800 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,802 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,806 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,807 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,809 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,812 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,814 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,816 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,818 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,820 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,821 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,823 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,825 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,827 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,828 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,830 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,832 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,835 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,837 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,838 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,840 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,842 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,843 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,845 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,847 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,848 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,850 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,852 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,853 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,855 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,857 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,858 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,860 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,862 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,863 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,865 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,867 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,868 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,870 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,872 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,873 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,875 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,878 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,881 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,882 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,884 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,886 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,887 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,889 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,891 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,893 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,894 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,896 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,898 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,899 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,901 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,903 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,905 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,906 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,908 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,910 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,912 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,913 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,915 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,917 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,919 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,920 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,922 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,924 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,926 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,927 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,929 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,931 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,933 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,934 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,937 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,939 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,940 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,942 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,944 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,947 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,949 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,951 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,952 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,954 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,956 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,958 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,959 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,961 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,963 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,967 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,969 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,971 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,974 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,977 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,980 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,981 - INFO - 127.0.0.1 - - [18/Jun/2025 00:49:52] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2025-06-18 00:49:52,984 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,987 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,992 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,994 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,996 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:52,998 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,001 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,003 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,006 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,008 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,009 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,011 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,013 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,015 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,017 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,018 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,020 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,022 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,024 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,026 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,028 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,030 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,032 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,034 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,035 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,037 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,039 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,041 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,042 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,045 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,047 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,049 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,050 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,052 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,054 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,055 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,057 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,059 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,061 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,062 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,064 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,066 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,067 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,069 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,071 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,072 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,074 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,076 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,077 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,079 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,081 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,083 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,084 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,086 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,088 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,090 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,091 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,093 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,095 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,096 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,098 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,100 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,101 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,102 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,103 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,104 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,105 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,106 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,107 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,108 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,110 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,111 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,112 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,113 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,114 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,116 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,117 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,118 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,119 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,120 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,122 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,124 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,125 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,126 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,127 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,128 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,130 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,131 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,132 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,133 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,135 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,138 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,140 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,143 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,145 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,147 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,150 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,154 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,158 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,162 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,163 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,165 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,168 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,170 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,174 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,179 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,180 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,182 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,183 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,185 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,187 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,188 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,190 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,191 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,193 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,195 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,196 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,198 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,200 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,202 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,203 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,205 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,206 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,208 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,210 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,212 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,213 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,215 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,219 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,220 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,222 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,224 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,226 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,228 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,230 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,232 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,233 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,235 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,237 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,239 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,242 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,247 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,249 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,252 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,256 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,257 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,258 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,259 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,261 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,262 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,263 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,264 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,265 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,267 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,268 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,269 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,270 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,271 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,273 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,274 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,275 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,276 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,277 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,278 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,280 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,281 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,283 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,284 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,286 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,288 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,289 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,293 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,294 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,296 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,298 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,299 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,301 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,302 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,304 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,305 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,306 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,307 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,308 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,310 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,311 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,311 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,312 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,314 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,316 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,317 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,318 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,319 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,320 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,322 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,323 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,323 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,324 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,326 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,328 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,328 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,329 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,330 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,332 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,333 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,334 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,335 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,336 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,338 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,339 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,340 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,341 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,342 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,343 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,345 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,347 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,349 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,350 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,352 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,354 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,355 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,359 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,360 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,363 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,364 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,366 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,370 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,371 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,373 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,375 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,377 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,378 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,380 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,382 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,383 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,385 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,386 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,388 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,390 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,392 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,393 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,394 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,395 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,397 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,398 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,399 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,400 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,402 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,403 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,404 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,405 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,407 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,408 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,409 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,410 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,411 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,412 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,414 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,415 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,416 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,417 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,418 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,420 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,421 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,422 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,423 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,424 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,426 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,427 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,428 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,429 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,430 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,432 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,432 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,433 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,434 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,436 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,438 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,440 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,441 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,443 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,444 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,445 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,447 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,448 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,449 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,450 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,451 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,452 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,453 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,455 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,456 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,457 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,457 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,459 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,461 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,462 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,465 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,468 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,470 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,472 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,473 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,475 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,477 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,478 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,480 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,482 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,483 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,487 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,488 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,490 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,492 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,493 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,495 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,497 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,498 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,500 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,502 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,503 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,505 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,506 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,508 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,511 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,513 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,514 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,516 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,517 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,519 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,521 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,522 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,524 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,524 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,526 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,528 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,529 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,529 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,530 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,532 - INFO - Successfully fetched 499 S&P 500 tickers
+2025-06-18 00:49:53,535 - INFO - 127.0.0.1 - - [18/Jun/2025 00:49:53] "GET /available-tickers HTTP/1.1" 200 -
+2025-06-18 00:50:07,106 - INFO - Starting prediction for ticker: MMM
+2025-06-18 00:50:07,110 - INFO - Loading model for MMM: saved_models/MMM_model_epoch_01.keras
+2025-06-18 00:50:07,126 - INFO - Fetching historical comparison for MMM
+2025-06-18 00:50:07,158 - INFO - Fetching fundamentals for MMM
+2025-06-18 00:50:07,176 - INFO - Loading model for MMM: saved_models/MMM_model_epoch_01.keras
+2025-06-18 00:50:07,181 - INFO - Earnings data for MMM: 0 rows
+2025-06-18 00:50:07,185 - INFO - Quarterly earnings data for MMM: 0 rows
+2025-06-18 00:50:07,503 - INFO - Fetching stock data for MMM: 2024-02-04 to 2025-06-18
+2025-06-18 00:50:07,505 - INFO - Fetching historical comparison data for MMM: 60 days
+2025-06-18 00:50:07,699 - INFO - Balance sheet data for MMM: 90 rows
+2025-06-18 00:50:07,972 - INFO - Financials data for MMM: 51 rows
+2025-06-18 00:50:07,998 - INFO - Successfully fetched 343 rows for MMM
+2025-06-18 00:50:08,008 - INFO - Successfully fetched historical comparison data for MMM: 109 rows
+2025-06-18 00:50:08,396 - INFO - Cashflow data for MMM: 58 rows
+2025-06-18 00:50:08,401 - INFO - Successfully completed fundamentals fetch for MMM
+2025-06-18 00:50:08,421 - ERROR - Error fetching fundamentals for MMM: '<' not supported between instances of 'Timestamp' and 'str'
+2025-06-18 00:50:08,431 - ERROR - Traceback (most recent call last):
+  File "/workspaces/StockPredictor/app.py", line 485, in fundamentals
+    return jsonify({
+           ^^^^^^^^^
+  File "/home/codespace/.local/lib/python3.12/site-packages/flask/json/__init__.py", line 170, in jsonify
+    return current_app.json.response(*args, **kwargs)  # type: ignore[return-value]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/codespace/.local/lib/python3.12/site-packages/flask/json/provider.py", line 214, in response
+    f"{self.dumps(obj, **dump_args)}\n", mimetype=self.mimetype
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/codespace/.local/lib/python3.12/site-packages/flask/json/provider.py", line 179, in dumps
+    return json.dumps(obj, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/python/3.12.1/lib/python3.12/json/__init__.py", line 238, in dumps
+    **kw).encode(obj)
+          ^^^^^^^^^^^
+  File "/usr/local/python/3.12.1/lib/python3.12/json/encoder.py", line 202, in encode
+    chunks = list(chunks)
+             ^^^^^^^^^^^^
+  File "/usr/local/python/3.12.1/lib/python3.12/json/encoder.py", line 432, in _iterencode
+    yield from _iterencode_dict(o, _current_indent_level)
+  File "/usr/local/python/3.12.1/lib/python3.12/json/encoder.py", line 406, in _iterencode_dict
+    yield from chunks
+  File "/usr/local/python/3.12.1/lib/python3.12/json/encoder.py", line 326, in _iterencode_list
+    yield from chunks
+  File "/usr/local/python/3.12.1/lib/python3.12/json/encoder.py", line 354, in _iterencode_dict
+    items = sorted(dct.items())
+            ^^^^^^^^^^^^^^^^^^^
+TypeError: '<' not supported between instances of 'Timestamp' and 'str'
+
+2025-06-18 00:50:08,431 - INFO - 127.0.0.1 - - [18/Jun/2025 00:50:08] "GET /fundamentals/MMM HTTP/1.1" 200 -
+2025-06-18 00:50:08,526 - INFO - Fetching additional metrics for MMM
+2025-06-18 00:50:08,699 - ERROR - HTTP Error 401: 
+2025-06-18 00:50:08,849 - INFO - Successfully fetched metrics for MMM
+2025-06-18 00:50:08,850 - INFO - Successfully completed prediction for MMM
+2025-06-18 00:50:08,851 - INFO - 127.0.0.1 - - [18/Jun/2025 00:50:08] "GET /predict/MMM HTTP/1.1" 200 -
+2025-06-18 00:50:13,491 - INFO - Successfully generated historical comparison for MMM: 89 data points
+2025-06-18 00:50:13,492 - INFO - 127.0.0.1 - - [18/Jun/2025 00:50:13] "GET /historical/MMM HTTP/1.1" 200 -
+2025-06-18 00:50:19,210 - INFO - Fetching prices for MMM, range: 30 days
+2025-06-18 00:50:19,210 - INFO - Fetching stock data for MMM: 2025-04-29 to 2025-06-18
+2025-06-18 00:50:19,344 - INFO - Successfully fetched 35 rows for MMM
+2025-06-18 00:50:19,344 - INFO - Successfully fetched 30 price data points for MMM
+2025-06-18 00:50:19,345 - INFO - 127.0.0.1 - - [18/Jun/2025 00:50:19] "GET /prices/MMM?range=30 HTTP/1.1" 200 -
+2025-06-18 00:55:25,885 - INFO - Fetching prices for MMM, range: 5 days
+2025-06-18 00:55:25,885 - INFO - Fetching stock data for MMM: 2025-05-24 to 2025-06-18
+2025-06-18 00:55:26,056 - INFO - Successfully fetched 16 rows for MMM
+2025-06-18 00:55:26,057 - INFO - Successfully fetched 5 price data points for MMM
+2025-06-18 00:55:26,058 - INFO - 127.0.0.1 - - [18/Jun/2025 00:55:26] "GET /prices/MMM?range=5 HTTP/1.1" 200 -
