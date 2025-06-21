@@ -3,11 +3,10 @@ numpy
 pandas
 yfinance
 pytickersymbols
-tensorflow-cpu
+tensorflow==2.16.1
 scikit-learn
 plotly
 requests
 schedule
 gunicorn
 ta
-mplfinance
