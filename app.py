@@ -2,6 +2,8 @@ from flask import Flask, render_template_string, jsonify, request
 import numpy as np
 import pandas as pd
 import yfinance as yf
+from yfinance import utils
+from yfinance import Ticker
 import tensorflow as tf
 from tensorflow.keras.models import load_model
 from sklearn.preprocessing import MinMaxScaler
@@ -22,10 +24,13 @@ from ta.utils import dropna
 from ta.volatility import BollingerBands
 from ta.momentum import RSIIndicator, StochasticOscillator
 from ta.trend import MACD, SMAIndicator
+from ta.volume import OnBalanceVolumeIndicator
+
 import mplfinance as mpf
 import matplotlib.pyplot as plt
 from io import BytesIO
 import base64
+import pandas_ta as ta_pat  # For candlestick pattern recognition
 
 # Additional imports for push notifications
 import requests
@@ -64,6 +69,17 @@ END_DATE = datetime.now().strftime("%Y-%m-%d")
 WINDOW = 20
 HORIZON = 20
 
+# Candlestick patterns - short-term (1-4 weeks) and long-term (>1 month)
+SHORT_TERM_PATTERNS = [
+    'DOJI', 'HAMMER', 'INVERTED_HAMMER', 'ENGULFING', 'HARAMI',
+    'PIERCING', 'DARK_CLOUD_COVER', 'KICKING', 'MORNING_STAR', 'EVENING_STAR'
+]
+
+LONG_TERM_PATTERNS = [
+    'HEAD_AND_SHOULDERS', 'DOUBLE_BOTTOM', 'DOUBLE_TOP',
+    'TRIPLE_BOTTOM', 'TRIPLE_TOP', 'RISING_WEDGE',
+    'FALLING_WEDGE', 'BELT_HOLD'
+]
 
 def get_sp500_tickers():
     """Return a list of S&P 500 tickers using the pytickersymbols package."""
@@ -223,6 +239,77 @@ def get_historical_comparison(ticker, days=60):
         logger.error(traceback.format_exc())
         print(error_msg)
         return None
+
+# ─────────────────────────────────────────────────────────────
+# Update these to match pandas_ta’s CDL_* function names:
+SHORT_TERM_PATTERNS = [
+    'DOJI', 'HAMMER', 'INVERTED_HAMMER', 'ENGULFING', 'HARAMI',
+    'PIERCING', 'DARK_CLOUD_COVER', 'KICKING', 'MORNING_STAR', 'EVENING_STAR'
+]
+
+LONG_TERM_PATTERNS = [
+    'HEAD_AND_SHOULDERS', 'DOUBLE_BOTTOM', 'DOUBLE_TOP',
+    'TRIPLE_BOTTOM', 'TRIPLE_TOP', 'RISING_WEDGE',
+    'FALLING_WEDGE', 'BELT_HOLD'
+]
+# ─────────────────────────────────────────────────────────────
+
+def detect_candlestick_patterns(df, time_frame):
+    """
+    Detect candlestick patterns based on the time frame.
+
+    For each pattern:
+      1) Look at the *last* bar:
+         >0 → "Bullish", <0 → "Bearish"
+      2) If last bar is 0, scan entire series:
+         any >0 → "Bullish"
+         any <0 → "Bearish"
+      3) Otherwise → "No"
+    """
+    # pick short vs. long term by your existing logic
+    patterns = SHORT_TERM_PATTERNS if time_frame == '5' else LONG_TERM_PATTERNS
+    results = {}
+
+    for pat in patterns:
+        try:
+            # build the pandas_ta function name, e.g. "CDLDOJI", "CDL_HAMMER" etc.
+            func_name = 'CDL' + pat
+            series = getattr(ta_pat, func_name)(
+                df['Open'], df['High'], df['Low'], df['Close']
+            )
+
+            # if the pattern function isn't present or returns nothing:
+            if series is None or series.size == 0:
+                results[pat] = "No"
+                continue
+
+            # 1) check the last candle
+            last = int(series.iloc[-1])
+            if last > 0:
+                results[pat] = "Bullish"
+                continue
+            elif last < 0:
+                results[pat] = "Bearish"
+                continue
+
+            # 2) fallback: scan the full window
+            if (series > 0).any():
+                results[pat] = "Bullish"
+            elif (series < 0).any():
+                results[pat] = "Bearish"
+            else:
+                results[pat] = "No"
+
+        except AttributeError:
+            # function not found in pandas_ta
+            logger.error(f"Pattern function not found: {func_name}")
+            results[pat] = "No"
+        except Exception as e:
+            logger.error(f"Error detecting {pat}: {e}")
+            results[pat] = "Error"
+
+    return results
+
 
 
 @app.route('/')
@@ -454,233 +541,282 @@ def prices(ticker):
         return jsonify({'error': str(e)})
 
 
+# --- Monkey-patch fundamentals retrieval ---
+def _patched_get_fundamentals(self, proxy=None):
+    url  = f"{self._scrape_url}/{self.ticker}/financials"
+    return utils.get_json(url, proxy)
+
+Ticker._get_fundamentals = _patched_get_fundamentals
+
+# --- Helper to convert DFs to JSON-safe records ---
+def df_to_records(df: pd.DataFrame) -> list:
+    if df.empty:
+        return []
+    df = df.copy()
+    df.columns = [
+        c.strftime('%Y-%m-%d') if isinstance(c, (pd.Timestamp, pd.Period)) else str(c)
+        for c in df.columns
+    ]
+    for col in df.columns:
+        if pd.api.types.is_datetime64_any_dtype(df[col]):
+            df[col] = df[col].dt.strftime('%Y-%m-%d')
+    df = df.where(pd.notnull(df), None)
+    return df.to_dict(orient='records')
+
+
+
 @app.route('/fundamentals/<ticker>')
 def fundamentals(ticker):
     try:
         logger.info(f"Fetching fundamentals for {ticker}")
-        
         tk = yf.Ticker(ticker)
-        
-        try:
-            earnings = tk.earnings.reset_index() if hasattr(tk, 'earnings') and tk.earnings is not None else pd.DataFrame()
-            logger.info(f"Earnings data for {ticker}: {len(earnings)} rows")
-        except Exception as e:
-            logger.error(f"Error fetching earnings for {ticker}: {e}")
-            earnings = pd.DataFrame()
-            
-        try:
-            quarterly_earnings = tk.quarterly_earnings.reset_index() if hasattr(tk, 'quarterly_earnings') and tk.quarterly_earnings is not None else pd.DataFrame()
-            logger.info(f"Quarterly earnings data for {ticker}: {len(quarterly_earnings)} rows")
-        except Exception as e:
-            logger.error(f"Error fetching quarterly earnings for {ticker}: {e}")
-            quarterly_earnings = pd.DataFrame()
-            
-        try:
-            bs = tk.balance_sheet.reset_index() if hasattr(tk, 'balance_sheet') and tk.balance_sheet is not None else pd.DataFrame()
-            logger.info(f"Balance sheet data for {ticker}: {len(bs)} rows")
-        except Exception as e:
-            logger.error(f"Error fetching balance sheet for {ticker}: {e}")
-            bs = pd.DataFrame()
-            
-        try:
-            fin = tk.financials.reset_index() if hasattr(tk, 'financials') and tk.financials is not None else pd.DataFrame()
-            logger.info(f"Financials data for {ticker}: {len(fin)} rows")
-        except Exception as e:
-            logger.error(f"Error fetching financials for {ticker}: {e}")
-            fin = pd.DataFrame()
-            
-        try:
-            cf = tk.cashflow.reset_index() if hasattr(tk, 'cashflow') and tk.cashflow is not None else pd.DataFrame()
-            logger.info(f"Cashflow data for {ticker}: {len(cf)} rows")
-        except Exception as e:
-            logger.error(f"Error fetching cashflow for {ticker}: {e}")
-            cf = pd.DataFrame()
-            
-        logger.info(f"Successfully completed fundamentals fetch for {ticker}")
+
+        # Annual earnings
+        earnings = (
+            tk.earnings.reset_index()
+            if getattr(tk, 'earnings', None) is not None else pd.DataFrame()
+        )
+        logger.info(f"Earnings rows: {len(earnings)}")
+
+        # Quarterly earnings
+        quarterly = (
+            tk.quarterly_earnings.reset_index()
+            if getattr(tk, 'quarterly_earnings', None) is not None else pd.DataFrame()
+        )
+        logger.info(f"Quarterly earnings rows: {len(quarterly)}")
+
+        # Balance sheet
+        bs = (
+            tk.balance_sheet.reset_index()
+            if getattr(tk, 'balance_sheet', None) is not None else pd.DataFrame()
+        )
+        logger.info(f"Balance sheet rows: {len(bs)}")
+
+        # Financials (income statement)
+        fin = (
+            tk.financials.reset_index()
+            if getattr(tk, 'financials', None) is not None else pd.DataFrame()
+        )
+        logger.info(f"Financials rows: {len(fin)}")
+
+        # Cashflow
+        cf = (
+            tk.cashflow.reset_index()
+            if getattr(tk, 'cashflow', None) is not None else pd.DataFrame()
+        )
+        logger.info(f"Cashflow rows: {len(cf)}")
+
+        logger.info(f"Successfully fetched all fundamentals for {ticker}")
         return jsonify({
-            'earnings': earnings.to_dict(orient='records') if not earnings.empty else [],
-            'quarterlyEarnings': quarterly_earnings.to_dict(orient='records') if not quarterly_earnings.empty else [],
-            'balanceSheet': bs.to_dict(orient='records') if not bs.empty else [],
-            'financials': fin.to_dict(orient='records') if not fin.empty else [],
-            'cashflow': cf.to_dict(orient='records') if not cf.empty else []
+            'earnings': df_to_records(earnings),
+            'quarterlyEarnings': df_to_records(quarterly),
+            'balanceSheet': df_to_records(bs),
+            'financials': df_to_records(fin),
+            'cashflow': df_to_records(cf)
         })
-        
     except Exception as e:
-        error_msg = f"Error fetching fundamentals for {ticker}: {e}"
-        logger.error(error_msg)
+        logger.error(f"Error fetching fundamentals for {ticker}: {e}")
         logger.error(traceback.format_exc())
-        print(error_msg)
         return jsonify({'error': str(e)})
 
 @app.route('/indicators/<ticker>')
 def technical_indicators(ticker):
-    """Calculate and return technical indicators for a stock"""
+    """Calculate and return technical indicators optimized for day trading."""
     try:
-        # 1. Fetch and trim data
-        range_days = int(request.args.get('range', 30))
-        buffer_days = 200
-        data = get_stock_data(ticker, days_back=range_days + buffer_days)
+        # keep 20 extra days so that short‐period EMAs stabilize
+        buffer_days = 20
+        data = get_stock_data(ticker, days_back=30 + buffer_days)
         if data is None or data.empty:
             return jsonify({'error': 'Unable to fetch data for ticker'}), 400
 
-        df = data.tail(range_days).copy()
+        # use only the last 30 days for generating signals
+        df = data.tail(30).copy()
         df.set_index('Date', inplace=True)
 
-        # 2. Determine indicator periods
-        if range_days <= 30:
-            rsi_period = 14
-            ma_short_period = 10
-            ma_long_period = 20
-        elif range_days <= 90:
-            rsi_period = 14
-            ma_short_period = 30
-            ma_long_period = 50
-        else:
-            rsi_period = 14
-            ma_short_period = 50
-            ma_long_period = 200
-
-        # 3. Compute indicators
-        stoch = StochasticOscillator(high=df['High'], low=df['Low'], close=df['Close'])
-        df['stoch_rsi_k'] = stoch.stoch()
-        df['stoch_rsi_d'] = stoch.stoch_signal()
-
-        macd = MACD(close=df['Close'])
-        df['macd'] = macd.macd()
+        # === MACD optimized for day trading: fast=5, slow=35, signal=5 ===
+        macd = MACD(
+            close=df['Close'],
+            window_fast=5,
+            window_slow=35,
+            window_sign=5
+        )
+        df['macd']        = macd.macd()
         df['macd_signal'] = macd.macd_signal()
-        df['macd_hist'] = macd.macd_diff()
 
-        bb = BollingerBands(close=df['Close'])
-        df['bb_upper'] = bb.bollinger_hband()
-        df['bb_middle'] = bb.bollinger_mavg()
-        df['bb_lower'] = bb.bollinger_lband()
-
-        df['double_bottom'] = 0
-        for i in range(2, len(df)):
-            if (df['Low'].iloc[i] < df['Low'].iloc[i-1] < df['Low'].iloc[i-2] and
-                df['Close'].iloc[i] > df['Close'].iloc[i-1] and
-                df['Close'].iloc[i] > df['Close'].iloc[i-2]):
-                df['double_bottom'].iloc[i] = 1
-
-        df['support'] = 0
-        df['resistance'] = 0
-        window = 5
-        for i in range(window, len(df)-window):
-            if df['Low'].iloc[i] == df['Low'].iloc[i-window:i+window].min():
-                df['support'].iloc[i] = df['Low'].iloc[i]
-            if df['High'].iloc[i] == df['High'].iloc[i-window:i+window].max():
-                df['resistance'].iloc[i] = df['High'].iloc[i]
-
-        rsi = RSIIndicator(close=df['Close'], window=rsi_period)
+        # === RSI optimized for day trading: window=7 ===
+        rsi = RSIIndicator(close=df['Close'], window=7)
         df['rsi'] = rsi.rsi()
 
-        ma_s = SMAIndicator(close=df['Close'], window=ma_short_period)
-        df['ma_short'] = ma_s.sma_indicator()
-        ma_l = SMAIndicator(close=df['Close'], window=ma_long_period)
-        df['ma_long'] = ma_l.sma_indicator()
+        # === SMAs optimized for day trading: 5 & 13 periods ===
+        sma_s = SMAIndicator(close=df['Close'], window=5)
+        df['ma_short'] = sma_s.sma_indicator()
+        sma_l = SMAIndicator(close=df['Close'], window=13)
+        df['ma_long']  = sma_l.sma_indicator()
 
-        df['buy_signal'] = 0
-        df['sell_signal'] = 0
-        df.loc[df['rsi'] < 30, 'buy_signal'] = 1
-        df.loc[df['rsi'] > 70, 'sell_signal'] = 1
-        for i in range(1, len(df)):
+        # === Stochastic Oscillator optimized: %K=9, %D=3 ===
+        sto = StochasticOscillator(
+            high=df['High'],
+            low=df['Low'],
+            close=df['Close'],
+            window=9,
+            smooth_window=3
+        )
+        df['stoch_k'] = sto.stoch()
+        df['stoch_d'] = sto.stoch_signal()
+
+        # === Bollinger Bands optimized: 10-period SMA, 1.5 std dev ===
+        bb = BollingerBands(
+            close=df['Close'],
+            window=10,
+            window_dev=1.5
+        )
+        df['bb_middle'] = bb.bollinger_mavg()
+        df['bb_upper']  = bb.bollinger_hband()
+        df['bb_lower']  = bb.bollinger_lband()
+
+        # === On-Balance Volume (no parameters to tune) ===
+        obv = OnBalanceVolumeIndicator(
+            close=df['Close'],
+            volume=df['Volume']
+        )
+        df['obv'] = obv.on_balance_volume()
+
+        # Determine signals for each day
+        signals = []
+        for i in range(len(df)):
+            date = df.index[i].strftime('%Y-%m-%d')
+
             # MACD crossover
-            if df['macd'].iloc[i] > df['macd_signal'].iloc[i] \
-               and df['macd'].iloc[i-1] <= df['macd_signal'].iloc[i-1]:
-                df['buy_signal'].iloc[i] = 1
-            elif df['macd'].iloc[i] < df['macd_signal'].iloc[i] \
-                 and df['macd'].iloc[i-1] >= df['macd_signal'].iloc[i-1]:
-                df['sell_signal'].iloc[i] = 1
-            # MA crossover
-            if df['ma_short'].iloc[i] > df['ma_long'].iloc[i] \
-               and df['ma_short'].iloc[i-1] <= df['ma_long'].iloc[i-1]:
-                df['buy_signal'].iloc[i] = 1
-            elif df['ma_short'].iloc[i] < df['ma_long'].iloc[i] \
-                 and df['ma_short'].iloc[i-1] >= df['ma_long'].iloc[i-1]:
-                df['sell_signal'].iloc[i] = 1
+            macd_signal = "None"
+            if i > 0:
+                if df['macd'].iat[i] > df['macd_signal'].iat[i] and df['macd'].iat[i-1] <= df['macd_signal'].iat[i-1]:
+                    macd_signal = "Buy"
+                elif df['macd'].iat[i] < df['macd_signal'].iat[i] and df['macd'].iat[i-1] >= df['macd_signal'].iat[i-1]:
+                    macd_signal = "Sell"
 
-        # 4. Prepare for JSON
-        df = df.reset_index()
-        # **Convert any NaN to None so jsonify emits JSON null, never NaN**
-        df = df.where(pd.notnull(df), None)
+            # RSI extremes
+            rsi_signal = "None"
+            if df['rsi'].iat[i] < 30:
+                rsi_signal = "Buy"
+            elif df['rsi'].iat[i] > 70:
+                rsi_signal = "Sell"
 
-        indicators = {
-            'dates':         df['Date'].dt.strftime('%Y-%m-%d').tolist(),
-            'open':          df['Open'].tolist(),
-            'high':          df['High'].tolist(),
-            'low':           df['Low'].tolist(),
-            'close':         df['Close'].tolist(),
-            'volume':        df['Volume'].tolist(),
-            'stoch_rsi_k':   df['stoch_rsi_k'].tolist(),
-            'stoch_rsi_d':   df['stoch_rsi_d'].tolist(),
-            'macd':          df['macd'].tolist(),
-            'macd_signal':   df['macd_signal'].tolist(),
-            'macd_hist':     df['macd_hist'].tolist(),
-            'bb_upper':      df['bb_upper'].tolist(),
-            'bb_middle':     df['bb_middle'].tolist(),
-            'bb_lower':      df['bb_lower'].tolist(),
-            'double_bottom': df['double_bottom'].tolist(),
-            'support':       df['support'].tolist(),
-            'resistance':    df['resistance'].tolist(),
-            'rsi':           df['rsi'].tolist(),
-            'ma_short':      df['ma_short'].tolist(),
-            'ma_long':       df['ma_long'].tolist(),
-            'buy_signals':   df['buy_signal'].tolist(),
-            'sell_signals':  df['sell_signal'].tolist(),
-            'rsi_period':    rsi_period,
-            'ma_short_period': ma_short_period,
-            'ma_long_period':  ma_long_period
-        }
+            # SMA crossover
+            ma_signal = "None"
+            if i > 0:
+                if df['ma_short'].iat[i] > df['ma_long'].iat[i] and df['ma_short'].iat[i-1] <= df['ma_long'].iat[i-1]:
+                    ma_signal = "Buy"
+                elif df['ma_short'].iat[i] < df['ma_long'].iat[i] and df['ma_short'].iat[i-1] >= df['ma_long'].iat[i-1]:
+                    ma_signal = "Sell"
 
-        return jsonify(indicators)
+            # Stochastic crossover
+            stoch_signal = "None"
+            if i > 0:
+                if df['stoch_k'].iat[i] > df['stoch_d'].iat[i] and df['stoch_k'].iat[i-1] <= df['stoch_d'].iat[i-1]:
+                    stoch_signal = "Buy"
+                elif df['stoch_k'].iat[i] < df['stoch_d'].iat[i] and df['stoch_k'].iat[i-1] >= df['stoch_d'].iat[i-1]:
+                    stoch_signal = "Sell"
+
+            # Bollinger Bands
+            bb_signal = "None"
+            if df['Close'].iat[i] < df['bb_lower'].iat[i]:
+                bb_signal = "Buy"
+            elif df['Close'].iat[i] > df['bb_upper'].iat[i]:
+                bb_signal = "Sell"
+
+            # OBV trend
+            obv_signal = "None"
+            if i > 0:
+                if df['obv'].iat[i] > df['obv'].iat[i-1]:
+                    obv_signal = "Buy"
+                elif df['obv'].iat[i] < df['obv'].iat[i-1]:
+                    obv_signal = "Sell"
+
+            signals.append({
+                'date': date,
+                'macd': macd_signal,
+                'rsi': rsi_signal,
+                'moving_averages': ma_signal,
+                'stochastic': stoch_signal,
+                'bollinger': bb_signal,
+                'obv': obv_signal
+            })
+
+        logger.info(f"Successfully calculated technical signals for {ticker} (day-trader settings)")
+        return jsonify({'ticker': ticker, 'signals': signals})
 
     except Exception as e:
-        logger.error(f"Error calculating technical indicators for {ticker}: {e}\\n{traceback.format_exc()}")
+        logger.error(f"Error calculating technical indicators for {ticker}: {e}\n{traceback.format_exc()}")
         return jsonify({'error': str(e)}), 500
 
-@app.route('/candlestick/<ticker>')
-def candlestick_plot(ticker):
-    """Generate a candlestick plot for the stock"""
+
+
+@app.route('/closing_price/<ticker>')
+def closing_price_data(ticker):
+    """Return closing prices for different time frames."""
     try:
         range_days = int(request.args.get('range', 30))
-        logger.info(f"Generating candlestick plot for {ticker}, range: {range_days} days")
+        logger.info(f"Fetching closing prices for {ticker}, range: {range_days} days")
         
-        # Fetch data
+        # Fetch data with buffer to account for missing days
         data = get_stock_data(ticker, days_back=range_days + 20)
         if data is None or data.empty:
-            error_msg = f'Unable to fetch data for {ticker}'
+            error_msg = f'Unable to fetch price data for {ticker}'
             logger.error(error_msg)
             return jsonify({'error': error_msg})
             
         # Take the last 'range_days' entries
         df = data.tail(range_days)
-        df.set_index('Date', inplace=True)
+        logger.info(f"Successfully fetched {len(df)} closing price data points for {ticker}")
         
-        # Create candlestick plot
-        fig = go.Figure(data=[go.Candlestick(
-            x=df.index,
-            open=df['Open'],
-            high=df['High'],
-            low=df['Low'],
-            close=df['Close'],
-            name='Candlesticks'
-        )])
-        
-        fig.update_layout(
-            title=f'{ticker} Candlestick Chart ({range_days} Days)',
-            xaxis_title='Date',
-            yaxis_title='Price',
-            xaxis_rangeslider_visible=False,
-            template='plotly_white'
-        )
-        
-        # Convert to JSON
-        graph_json = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
-        logger.info(f"Successfully generated candlestick plot for {ticker}")
-        return jsonify({'plot': graph_json})
+        return jsonify({
+            'dates': df['Date'].dt.strftime('%Y-%m-%d').tolist(),
+            'close': df['Close'].tolist(),
+            'ticker': ticker
+        })
         
     except Exception as e:
-        error_msg = f"Error generating candlestick plot for {ticker}: {e}"
+        error_msg = f"Error in closing_price endpoint for {ticker}: {e}"
+        logger.error(error_msg)
+        logger.error(traceback.format_exc())
+        return jsonify({'error': str(e)})
+
+
+@app.route('/candlestick/<ticker>')
+def candlestick_data(ticker):
+    """Return candlestick data with pattern recognition for different time frames."""
+    try:
+        range_days = int(request.args.get('range', 30))
+        logger.info(f"Fetching candlestick data for {ticker}, range: {range_days} days")
+        
+        # Fetch data with buffer to account for missing days
+        data = get_stock_data(ticker, days_back=range_days + 20)
+        if data is None or data.empty:
+            error_msg = f'Unable to fetch price data for {ticker}'
+            logger.error(error_msg)
+            return jsonify({'error': error_msg})
+            
+        # Take the last 'range_days' entries
+        df = data.tail(range_days)
+        logger.info(f"Successfully fetched {len(df)} candlestick data points for {ticker}")
+        
+        # Detect candlestick patterns
+        time_frame = str(range_days)
+        patterns = detect_candlestick_patterns(df, time_frame)
+        
+        return jsonify({
+            'dates': df['Date'].dt.strftime('%Y-%m-%d').tolist(),
+            'open': df['Open'].tolist(),
+            'high': df['High'].tolist(),
+            'low': df['Low'].tolist(),
+            'close': df['Close'].tolist(),
+            'volume': df['Volume'].tolist(),
+            'patterns': patterns,
+            'ticker': ticker
+        })
+        
+    except Exception as e:
+        error_msg = f"Error in candlestick endpoint for {ticker}: {e}"
         logger.error(error_msg)
         logger.error(traceback.format_exc())
         return jsonify({'error': str(e)})
@@ -979,8 +1115,8 @@ HTML_TEMPLATE = '''
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>S&P 500 Stock Price Predictor</title>
-    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -1363,6 +1499,16 @@ HTML_TEMPLATE = '''
             font-weight: 600;
         }
 
+        .signal-buy {
+            color: #27ae60;
+            font-weight: 600;
+        }
+
+        .signal-sell {
+            color: #e74c3c;
+            font-weight: 600;
+        }
+
         .error {
             padding: 18px;
             background: #fee;
@@ -1384,57 +1530,6 @@ HTML_TEMPLATE = '''
             margin-bottom: 18px;
         }
 
-        .plot-switcher {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 12px;
-        }
-
-        .plot-switcher button {
-            padding: 6px 12px;
-            border: none;
-            border-radius: 6px;
-            font-size: 0.85rem;
-            cursor: pointer;
-            background: #e1e8ed;
-            color: #2c3e50;
-            transition: background 0.3s ease;
-        }
-
-        .plot-switcher button.active {
-            background: #667eea;
-            color: #fff;
-        }
-
-        #actualControls {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-bottom: 12px;
-        }
-
-        #actualControls select {
-            padding: 5px 8px;
-            font-size: 0.85rem;
-            border-radius: 6px;
-            border: 1px solid #ccc;
-        }
-
-        #taControls {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-bottom: 12px;
-        }
-
-        #taControls select {
-            padding: 5px 8px;
-            font-size: 0.85rem;
-            border-radius: 6px;
-            border: 1px solid #ccc;
-            width: 200px;
-        }
-
         .error-display {
             background: #ffebee;
             border: 1px solid #f44336;
@@ -1451,6 +1546,55 @@ HTML_TEMPLATE = '''
             color: #c62828;
             margin-bottom: 10px;
             font-family: inherit;
+        }
+        
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+            background: white;
+            border-radius: 10px;
+            padding: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        }
+        
+        .tablinks {
+            padding: 10px 20px;
+            background: #f8f9fa;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            color: #2c3e50;
+            transition: all 0.3s ease;
+        }
+        
+        .tablinks:hover {
+            background: #e9ecef;
+        }
+        
+        .tablinks.active {
+            background: #667eea;
+            color: white;
+        }
+        
+        .tabcontent {
+            display: none;
+        }
+        
+        .tabcontent.active {
+            display: grid;
+            gap: 25px;
+        }
+        
+        .chart-container {
+            height: 400px;
+            margin-top: 20px;
+        }
+        
+        .pattern-table {
+            margin-top: 20px;
         }
 
         @media (max-width: 768px) {
@@ -1470,6 +1614,10 @@ HTML_TEMPLATE = '''
             
             .ticker-grid {
                 grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+            }
+            
+            .tabs {
+                flex-direction: column;
             }
         }
     </style>
@@ -1521,36 +1669,34 @@ HTML_TEMPLATE = '''
             </div>
             
             <div class="results-section" id="results">
-                <div class="section-card">
-                    <h3><i class="fas fa-chart-bar"></i> Key Stock Metrics</h3>
-                    <div class="table-wrapper">
-                        <table id="metricsTable" class="comparison-table">
-                            <thead>
-                                <tr>
-                                    <th>Metric</th>
-                                    <th>Value</th>
-                                </tr>
-                            </thead>
-                            <tbody></tbody>
-                        </table>
-                    </div>
-                </div>
-            
-                <div class="section-card" id="stockInfo">
-                    <!-- Stock information will be populated here -->
+                <div class="tabs">
+                    <button class="tablinks active" onclick="openTab(event, 'overview')">Overview</button>
+                    <button class="tablinks" onclick="openTab(event, 'closingPrice')">Closing Price</button>
+                    <button class="tablinks" onclick="openTab(event, 'candlestick')">Candlestick</button>
                 </div>
                 
-                <div class="section-card">
-                    <div class="plot-switcher">
-                        <button id="modelBtn" class="active">Model vs Actual</button>
-                        <button id="actualBtn">Actual Price</button>
-                        <button id="taBtn">Technical Analysis</button>
+                <div id="overview" class="tabcontent active">
+                    <div class="section-card">
+                        <h3><i class="fas fa-chart-bar"></i> Key Stock Metrics</h3>
+                        <div class="table-wrapper">
+                            <table id="metricsTable" class="comparison-table">
+                                <thead>
+                                    <tr>
+                                        <th>Metric</th>
+                                        <th>Value</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+                
+                    <div class="section-card" id="stockInfo">
+                        <!-- Stock information will be populated here -->
                     </div>
                     
-                    <div id="modelSection">
-                        <h3><i class="fas fa-chart-area"></i> Model Predictions vs Actual Prices</h3>
-                        <div id="chart"></div>
-                        
+                    <div class="section-card">
+                        <h3><i class="fas fa-exchange-alt"></i> Model Predictions vs Actual Prices</h3>
                         <div id="tableContainer" style="margin-top: 20px;">
                             <div class="table-header">
                                 <label for="tableRangeSelect">Days:</label>
@@ -1579,48 +1725,66 @@ HTML_TEMPLATE = '''
                         </div>
                     </div>
                     
-                    <div id="actualSection" style="display: none; margin-top: 20px;">
-                        <div id="actualControls">
-                            <label for="actualRangeSelect">View Actual Price for:</label>
-                            <select id="actualRangeSelect">
-                                <option value="5">5 Days</option>
-                                <option value="30" selected>30 Days</option>
-                                <option value="90">90 Days</option>
-                                <option value="365">365 Days</option>
-                            </select>
-                        </div>
-                        <div id="actualChart"></div>
-                    </div>
+                    <div class="section-card" id="signals">
+    <h3><i class="fas fa-signal"></i> Technical Signals (Last 30 Days)</h3>
+    <div class="table-wrapper">
+        <table id="signalsTable" class="comparison-table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>MACD</th>
+                    <th>RSI</th>
+                    <th>Moving Averages</th>
+                    <th>Stochastic</th>
+                    <th>Bollinger</th>
+                    <th>OBV</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+</div>
                     
-                    <div id="taSection" style="display: none; margin-top: 20px;">
-                        <div id="taControls">
-                            <label for="taRangeSelect">View Price for:</label>
-                            <select id="taRangeSelect">
-                                <option value="5">5 Days</option>
-                                <option value="30" selected>30 Days</option>
-                                <option value="90">90 Days</option>
-                                <option value="365">365 Days</option>
-                            </select>
-                            
-                            <label for="indicatorSelect">Indicator:</label>
-                            <select id="indicatorSelect">
-                                <option value="none">No Indicator</option>
-                                <option value="stoch_rsi">Stochastic RSI</option>
-                                <option value="macd">MACD</option>
-                                <option value="bollinger">Bollinger Bands</option>
-                                <option value="rsi">Relative Strength Index (RSI)</option>
-                                <option value="moving_averages">Moving Averages</option>
-                                <option value="double_bottom">Double Bottoms</option>
-                                <option value="support_resistance">Support & Resistance</option>
-                            </select>
-                        </div>
-                        <div id="taChart"></div>
+                    <div class="section-card" id="fundamentals">
+                        <h3><i class="fas fa-building"></i> Fundamentals</h3>
+                        <p>Loading...</p>
                     </div>
                 </div>
                 
-                <div class="section-card" id="fundamentals">
-                    <h3><i class="fas fa-building"></i> Fundamentals</h3>
-                    <p>Loading...</p>
+                <div id="closingPrice" class="tabcontent">
+                    <div class="section-card">
+                        <h3><i class="fas fa-chart-line"></i> Closing Price</h3>
+                        <div>
+                            <label for="closingPriceRange">Time Frame:</label>
+                            <select id="closingPriceRange">
+                                <option value="5">5 Days</option>
+                                <option value="30">30 Days</option>
+                                <option value="90">90 Days</option>
+                                <option value="365">12 Months</option>
+                            </select>
+                        </div>
+                        <div id="closingPriceChart" class="chart-container"></div>
+                    </div>
+                </div>
+                
+                <div id="candlestick" class="tabcontent">
+                    <div class="section-card">
+                        <h3><i class="fas fa-candle-stick"></i> Candlestick Chart</h3>
+                        <div>
+                            <label for="candlestickRange">Time Frame:</label>
+                            <select id="candlestickRange">
+                                <option value="5">5 Days</option>
+                                <option value="30">30 Days</option>
+                                <option value="90">90 Days</option>
+                                <option value="365">12 Months</option>
+                            </select>
+                        </div>
+                        <div id="candlestickChart" class="chart-container"></div>
+                    </div>
+                    <div class="section-card pattern-table">
+                        <h3><i class="fas fa-table"></i> Candlestick Pattern Recognition</h3>
+                        <div id="patternTable"></div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1630,15 +1794,12 @@ HTML_TEMPLATE = '''
         let selectedTicker = null;
         let tickerData = [];
         let historicalData = null;
-        let priceData = null;
-        let indicatorData = null;
 
         // Enhanced error display function
         function displayError(containerId, error, context = '') {
             const container = document.getElementById(containerId);
             const timestamp = new Date().toLocaleString();
-            const errorHtml = 
-                `<div class="error-display">
+            const errorHtml = `<div class="error-display">
                     <h4>Error ${context ? 'in ' + context : ''} [${timestamp}]</h4>
                     <div>${error}</div>
                 </div>`;
@@ -1652,6 +1813,38 @@ HTML_TEMPLATE = '''
         function logInfo(message, data = null) {
             const timestamp = new Date().toLocaleString();
             console.log(`[${timestamp}] ${message}`, data || '');
+        }
+
+        // Tab switching
+        function openTab(evt, tabName) {
+            try {
+                // Hide all tabcontent
+                const tabcontent = document.getElementsByClassName("tabcontent");
+                for (let i = 0; i < tabcontent.length; i++) {
+                    tabcontent[i].classList.remove("active");
+                }
+                
+                // Remove active class from tablinks
+                const tablinks = document.getElementsByClassName("tablinks");
+                for (let i = 0; i < tablinks.length; i++) {
+                    tablinks[i].classList.remove("active");
+                }
+                
+                // Show the current tab, add active class to the button
+                document.getElementById(tabName).classList.add("active");
+                evt.currentTarget.classList.add("active");
+                
+                // Load data if needed
+                if (tabName === 'closingPrice' && selectedTicker) {
+                    loadClosingPriceChart(selectedTicker);
+                } else if (tabName === 'candlestick' && selectedTicker) {
+                    loadCandlestickChart(selectedTicker);
+                }
+            } catch (error) {
+                const errorMsg = `Error switching tabs: ${error.message}`;
+                console.error(errorMsg);
+                displayError('results', errorMsg, 'tab switching');
+            }
         }
 
         // Load ticker data and update display
@@ -1720,8 +1913,6 @@ HTML_TEMPLATE = '''
                 
                 // Reset data
                 historicalData = null;
-                priceData = null;
-                indicatorData = null;
                 
                 logInfo(`Selecting ticker: ${ticker}`);
                 
@@ -1737,6 +1928,10 @@ HTML_TEMPLATE = '''
                     }),
                     fetchFundamentals(ticker).catch(e => {
                         console.error('Fundamentals failed:', e);
+                        return null;
+                    }),
+                    fetchSignals(ticker).catch(e => {
+                        console.error('Signals failed:', e);
                         return null;
                     })
                 ]).then(() => {
@@ -1808,92 +2003,18 @@ HTML_TEMPLATE = '''
                 
                 if (data.error) {
                     logInfo('Historical data not available: ' + data.error);
-                    document.getElementById('modelSection').style.display = 'none';
                     return null;
                 }
                 
                 historicalData = data;
-                displayModelSection(data);
-                document.getElementById('modelSection').style.display = 'block';
-                document.getElementById('actualSection').style.display = 'none';
-                document.getElementById('taSection').style.display = 'none';
-                document.getElementById('modelBtn').classList.add('active');
-                document.getElementById('actualBtn').classList.remove('active');
-                document.getElementById('taBtn').classList.remove('active');
-                
+                populateComparisonTable(data, 60);
                 logInfo('Historical data fetched successfully for ' + ticker);
                 return data;
                 
             } catch (error) {
                 const errorMsg = `Failed to fetch historical data for ${ticker}: ${error.message}`;
                 console.error(errorMsg);
-                displayError('chart', errorMsg, 'historical data fetch');
-                return null;
-            }
-        }
-
-        async function fetchActualPrices(ticker, days) {
-            try {
-                logInfo(`Fetching actual prices for ${ticker}, ${days} days`);
-                const response = await fetch(`/prices/${ticker}?range=${days}`);
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }
-                
-                const data = await response.json();
-                
-                if (data.error) {
-                    throw new Error(data.error);
-                }
-                
-                logInfo('Actual prices received successfully', {
-                    ticker: ticker,
-                    days: days,
-                    dataPoints: data.dates?.length || 0
-                });
-                
-                return data;
-                
-            } catch (error) {
-                const errorMsg = `Failed to fetch actual prices for ${ticker} (${days} days): ${error.message}`;
-                console.error(errorMsg);
-                displayError('actualChart', errorMsg, 'actual prices fetch');
-                return null;
-            }
-        }
-
-        async function fetchIndicatorData(ticker, days) {
-            try {
-                logInfo(`Fetching indicators for ${ticker}, ${days} days`);
-                const response = await fetch(`/indicators/${ticker}?range=${days}`);
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }
-                
-                const data = await response.json();
-                
-                if (data.error) {
-                    throw new Error(data.error);
-                }
-                
-                indicatorData = data;
-                logInfo('Indicator data received successfully', {
-                    ticker: ticker,
-                    days: days,
-                    dataPoints: data.dates?.length || 0
-                });
-                
-                // Update the chart with the selected indicator
-                updateTechnicalChart();
-                
-                return data;
-                
-            } catch (error) {
-                const errorMsg = `Failed to fetch indicators for ${ticker}: ${error.message}`;
-                console.error(errorMsg);
-                displayError('taChart', errorMsg, 'indicator fetch');
+                displayError('tableBody', errorMsg, 'historical data fetch');
                 return null;
             }
         }
@@ -1999,76 +2120,6 @@ HTML_TEMPLATE = '''
             }
         }
 
-        function displayModelSection(data) {
-            try {
-                if (!data || !data.dates || data.dates.length === 0) {
-                    displayError('chart', 'No model data available', 'model section display');
-                    return;
-                }
-
-                const sliceCount = Math.min(5, data.dates.length);
-                const dates = data.dates.slice(-sliceCount);
-                const actual = data.actual.slice(-sliceCount);
-                const predicted = data.predicted.slice(-sliceCount);
-
-                const trace1 = {
-                    x: dates,
-                    y: actual,
-                    type: 'scatter',
-                    mode: 'lines+markers',
-                    name: 'Actual Price',
-                    line: { width: 2, color: '#27ae60' },
-                    marker: { size: 5, color: '#27ae60' }
-                };
-
-                const trace2 = {
-                    x: dates,
-                    y: predicted,
-                    type: 'scatter',
-                    mode: 'lines+markers',
-                    name: 'Predicted Price',
-                    line: { width: 2, dash: 'dash', color: '#667eea' },
-                    marker: { size: 5, color: '#667eea' }
-                };
-
-                const layout = {
-                    title: {
-                        text: `${data.ticker} - Model vs Actual (Last ${sliceCount} Days)`,
-                        font: { size: 16, color: '#2c3e50' }
-                    },
-                    xaxis: { 
-                        title: 'Date',
-                        gridcolor: '#ecf0f1'
-                    },
-                    yaxis: { 
-                        title: 'Price ($)',
-                        gridcolor: '#ecf0f1'
-                    },
-                    hovermode: 'x unified',
-                    showlegend: true,
-                    margin: { l: 50, r: 30, t: 50, b: 60 },
-                    plot_bgcolor: 'rgba(0,0,0,0)',
-                    paper_bgcolor: 'rgba(0,0,0,0)'
-                };
-
-                Plotly.newPlot('chart', [trace1, trace2], layout, { responsive: true })
-                    .then(() => {
-                        logInfo('Model chart rendered successfully');
-                        populateComparisonTable(data, 60);
-                    })
-                    .catch(error => {
-                        const errorMsg = `Error rendering model chart: ${error.message}`;
-                        console.error(errorMsg);
-                        displayError('chart', errorMsg, 'model chart rendering');
-                    });
-                    
-            } catch (error) {
-                const errorMsg = `Error in displayModelSection: ${error.message}`;
-                console.error(errorMsg);
-                displayError('chart', errorMsg, 'model section display');
-            }
-        }
-
         function populateComparisonTable(data, days) {
             try {
                 const tableBody = document.getElementById('tableBody');
@@ -2115,410 +2166,88 @@ HTML_TEMPLATE = '''
             }
         }
 
-        function displayActualSection(data) {
+        async function fetchSignals(ticker) {
             try {
-                if (!data || !data.dates || data.dates.length === 0) {
-                    displayError('actualChart', 'No data available for this time range', 'actual section display');
-                    return;
+                logInfo(`Fetching signals for ${ticker}`);
+                const response = await fetch(`/indicators/${ticker}`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 }
-
-                const trace = {
-                    x: data.dates,
-                    y: data.close,
-                    type: 'scatter',
-                    mode: 'lines+markers',
-                    name: 'Close Price',
-                    line: { width: 2, color: '#e74c3c' },
-                    marker: { size: 4, color: '#e74c3c' }
-                };
-
-                const layout = {
-                    title: {
-                        text: `${data.ticker} - Actual Close Price (${data.dates.length} Days)`,
-                        font: { size: 16, color: '#2c3e50' }
-                    },
-                    xaxis: { 
-                        title: 'Date',
-                        gridcolor: '#ecf0f1'
-                    },
-                    yaxis: { 
-                        title: 'Price ($)',
-                        gridcolor: '#ecf0f1'
-                    },
-                    hovermode: 'x unified',
-                    showlegend: false,
-                    margin: { l: 50, r: 30, t: 50, b: 60 },
-                    plot_bgcolor: 'rgba(0,0,0,0)',
-                    paper_bgcolor: 'rgba(0,0,0,0)'
-                };
-
-                Plotly.newPlot('actualChart', [trace], layout, { responsive: true })
-                    .then(() => {
-                        logInfo('Actual chart rendered successfully');
-                    })
-                    .catch(error => {
-                        const errorMsg = `Error rendering actual chart: ${error.message}`;
-                        console.error(errorMsg);
-                        displayError('actualChart', errorMsg, 'actual chart rendering');
-                    });
-                    
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                displaySignals(data);
+                logInfo('Signals fetched and displayed successfully for ' + ticker);
+                return data;
+                
             } catch (error) {
-                const errorMsg = `Error in displayActualSection: ${error.message}`;
+                const errorMsg = `Failed to load signals for ${ticker}: ${error.message}`;
                 console.error(errorMsg);
-                displayError('actualChart', errorMsg, 'actual section display');
+                displayError('signals', errorMsg, 'signals fetch');
+                return null;
             }
         }
 
-        function updateTechnicalChart() {
+   function displaySignals(data) {
+    try {
+        const tbody = document.querySelector('#signalsTable tbody');
+        tbody.innerHTML = '';
+        
+        data.signals.forEach(signal => {
+            const macdClass = signal.macd === 'Buy' ? 'signal-buy' : signal.macd === 'Sell' ? 'signal-sell' : '';
+            const rsiClass = signal.rsi === 'Buy' ? 'signal-buy' : signal.rsi === 'Sell' ? 'signal-sell' : '';
+            const maClass = signal.moving_averages === 'Buy' ? 'signal-buy' : signal.moving_averages === 'Sell' ? 'signal-sell' : '';
+            const stochClass = signal.stochastic === 'Buy' ? 'signal-buy' : signal.stochastic === 'Sell' ? 'signal-sell' : '';
+            const bbClass = signal.bollinger === 'Buy' ? 'signal-buy' : signal.bollinger === 'Sell' ? 'signal-sell' : '';
+            const obvClass = signal.obv === 'Buy' ? 'signal-buy' : signal.obv === 'Sell' ? 'signal-sell' : '';
+            
+            tbody.innerHTML += 
+                `<tr>
+                    <td>${signal.date}</td>
+                    <td class="${macdClass}">${signal.macd}</td>
+                    <td class="${rsiClass}">${signal.rsi}</td>
+                    <td class="${maClass}">${signal.moving_averages}</td>
+                    <td class="${stochClass}">${signal.stochastic}</td>
+                    <td class="${bbClass}">${signal.bollinger}</td>
+                    <td class="${obvClass}">${signal.obv}</td>
+                </tr>`;
+        });
+        logInfo('Signals table populated successfully');
+    } catch (error) {
+        const errorMsg = `Error displaying signals: ${error.message}`;
+        console.error(errorMsg);
+        displayError('signalsTable', errorMsg, 'signals display');
+    }
+}
+        async function fetchFundamentals(ticker) {
             try {
-                const indicator = document.getElementById('indicatorSelect').value;
-                const container = document.getElementById('taChart');
+                logInfo(`Fetching fundamentals for ${ticker}`);
+                const response = await fetch(`/fundamentals/${ticker}`);
                 
-                if (!priceData || !priceData.dates || priceData.dates.length === 0) {
-                    displayError('taChart', 'No price data available', 'technical chart update');
-                    return;
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 }
                 
-                // Create candlestick trace
-                const candlestickTrace = {
-                    x: priceData.dates,
-                    open: priceData.open,
-                    high: priceData.high,
-                    low: priceData.low,
-                    close: priceData.close,
-                    type: 'candlestick',
-                    name: 'Price',
-                    increasing: { line: { color: '#27ae60' }, fillcolor: '#27ae60' },
-                    decreasing: { line: { color: '#e74c3c' }, fillcolor: '#e74c3c' }
-                };
+                const data = await response.json();
                 
-                const data = [candlestickTrace];
-                const layout = {
-                    title: `${selectedTicker} Technical Analysis`,
-                    xaxis: { title: 'Date', rangeslider: { visible: false } },
-                    yaxis: { title: 'Price' },
-                    showlegend: true,
-                    margin: { l: 50, r: 30, t: 50, b: 60 },
-                    plot_bgcolor: 'rgba(0,0,0,0)',
-                    paper_bgcolor: 'rgba(0,0,0,0)'
-                };
-                
-                // Add selected indicator
-                if (indicator !== 'none' && indicatorData) {
-                    switch(indicator) {
-                        case 'stoch_rsi':
-                            if (indicatorData.stoch_rsi_k && indicatorData.stoch_rsi_d) {
-                                data.push({
-                                    x: indicatorData.dates,
-                                    y: indicatorData.stoch_rsi_k,
-                                    type: 'scatter',
-                                    mode: 'lines',
-                                    name: 'Stoch RSI %K',
-                                    line: { color: '#3498db', width: 2 },
-                                    yaxis: 'y2'
-                                });
-                                data.push({
-                                    x: indicatorData.dates,
-                                    y: indicatorData.stoch_rsi_d,
-                                    type: 'scatter',
-                                    mode: 'lines',
-                                    name: 'Stoch RSI %D',
-                                    line: { color: '#9b59b6', width: 2, dash: 'dash' },
-                                    yaxis: 'y2'
-                                });
-                                layout.yaxis2 = {
-                                    title: 'Stoch RSI',
-                                    overlaying: 'y',
-                                    side: 'right',
-                                    range: [0, 100]
-                                };
-                            }
-                            break;
-                            
-                        case 'macd':
-                            if (indicatorData.macd && indicatorData.macd_signal && indicatorData.macd_hist) {
-                                // MACD lines
-                                data.push({
-                                    x: indicatorData.dates,
-                                    y: indicatorData.macd,
-                                    type: 'scatter',
-                                    mode: 'lines',
-                                    name: 'MACD',
-                                    line: { color: '#3498db', width: 2 },
-                                    yaxis: 'y2'
-                                });
-                                data.push({
-                                    x: indicatorData.dates,
-                                    y: indicatorData.macd_signal,
-                                    type: 'scatter',
-                                    mode: 'lines',
-                                    name: 'Signal',
-                                    line: { color: '#e74c3c', width: 2 },
-                                    yaxis: 'y2'
-                                });
-                                
-                                // MACD histogram
-                                const colors = indicatorData.macd_hist.map(val => val >= 0 ? '#27ae60' : '#e74c3c');
-                                data.push({
-                                    x: indicatorData.dates,
-                                    y: indicatorData.macd_hist,
-                                    type: 'bar',
-                                    name: 'MACD Hist',
-                                    marker: { color: colors },
-                                    yaxis: 'y2'
-                                });
-                                
-                                layout.yaxis2 = {
-                                    title: 'MACD',
-                                    overlaying: 'y',
-                                    side: 'right'
-                                };
-                            }
-                            break;
-                            
-                        case 'bollinger':
-                            if (indicatorData.bb_upper && indicatorData.bb_middle && indicatorData.bb_lower) {
-                                data.push({
-                                    x: indicatorData.dates,
-                                    y: indicatorData.bb_upper,
-                                    type: 'scatter',
-                                    mode: 'lines',
-                                    name: 'BB Upper',
-                                    line: { color: '#9b59b6', width: 1 }
-                                });
-                                data.push({
-                                    x: indicatorData.dates,
-                                    y: indicatorData.bb_middle,
-                                    type: 'scatter',
-                                    mode: 'lines',
-                                    name: 'BB Middle (MA)',
-                                    line: { color: '#3498db', width: 1 }
-                                });
-                                data.push({
-                                    x: indicatorData.dates,
-                                    y: indicatorData.bb_lower,
-                                    type: 'scatter',
-                                    mode: 'lines',
-                                    name: 'BB Lower',
-                                    line: { color: '#9b59b6', width: 1 }
-                                });
-                            }
-                            break;
-                            
-                        case 'rsi':
-                            if (indicatorData.rsi) {
-                                data.push({
-                                    x: indicatorData.dates,
-                                    y: indicatorData.rsi,
-                                    type: 'scatter',
-                                    mode: 'lines',
-                                    name: `RSI (${indicatorData.rsi_period})`,
-                                    line: { color: '#3498db', width: 2 },
-                                    yaxis: 'y2'
-                                });
-                                layout.yaxis2 = {
-                                    title: 'RSI',
-                                    overlaying: 'y',
-                                    side: 'right',
-                                    range: [0, 100]
-                                };
-                                // Add overbought/oversold lines
-                                layout.shapes = [
-                                    {
-                                        type: 'line',
-                                        x0: indicatorData.dates[0],
-                                        x1: indicatorData.dates[indicatorData.dates.length-1],
-                                        y0: 70,
-                                        y1: 70,
-                                        line: { color: '#e74c3c', width: 1, dash: 'dash' },
-                                        xref: 'x',
-                                        yref: 'y2'
-                                    },
-                                    {
-                                        type: 'line',
-                                        x0: indicatorData.dates[0],
-                                        x1: indicatorData.dates[indicatorData.dates.length-1],
-                                        y0: 30,
-                                        y1: 30,
-                                        line: { color: '#27ae60', width: 1, dash: 'dash' },
-                                        xref: 'x',
-                                        yref: 'y2'
-                                    }
-                                ];
-                            }
-                            break;
-                            
-                        case 'moving_averages':
-                            if (indicatorData.ma_short && indicatorData.ma_long) {
-                                data.push({
-                                    x: indicatorData.dates,
-                                    y: indicatorData.ma_short,
-                                    type: 'scatter',
-                                    mode: 'lines',
-                                    name: `MA (${indicatorData.ma_short_period})`,
-                                    line: { color: '#3498db', width: 2 }
-                                });
-                                data.push({
-                                    x: indicatorData.dates,
-                                    y: indicatorData.ma_long,
-                                    type: 'scatter',
-                                    mode: 'lines',
-                                    name: `MA (${indicatorData.ma_long_period})`,
-                                    line: { color: '#e74c3c', width: 2 }
-                                });
-                            }
-                            break;
-                            
-                        case 'double_bottom':
-                            if (indicatorData.double_bottom) {
-                                const doubleBottomPoints = [];
-                                for (let i = 0; i < indicatorData.dates.length; i++) {
-                                    if (indicatorData.double_bottom[i] === 1) {
-                                        doubleBottomPoints.push({
-                                            x: indicatorData.dates[i],
-                                            y: indicatorData.low[i],
-                                            text: 'Double Bottom',
-                                            showarrow: true,
-                                            arrowhead: 2,
-                                            ax: 0,
-                                            ay: -30,
-                                            bgcolor: 'rgba(46, 204, 113, 0.8)',
-                                            bordercolor: 'rgba(0,0,0,0)',
-                                            borderpad: 4,
-                                            font: { size: 12, color: '#fff' }
-                                        });
-                                    }
-                                }
-                                layout.annotations = doubleBottomPoints;
-                            }
-                            break;
-                            
-                        case 'support_resistance':
-                            if (indicatorData.support && indicatorData.resistance) {
-                                // Support points
-                                const supportPoints = indicatorData.support.map((val, i) => {
-                                    if (val > 0) {
-                                        return {
-                                            x: indicatorData.dates[i],
-                                            y: val,
-                                            text: 'Support',
-                                            showarrow: true,
-                                            arrowhead: 2,
-                                            ax: 0,
-                                            ay: 30,
-                                            bgcolor: 'rgba(46, 204, 113, 0.8)',
-                                            bordercolor: 'rgba(0,0,0,0)',
-                                            borderpad: 4,
-                                            font: { size: 12, color: '#fff' }
-                                        };
-                                    }
-                                    return null;
-                                }).filter(ann => ann !== null);
-                                
-                                // Resistance points
-                                const resistancePoints = indicatorData.resistance.map((val, i) => {
-                                    if (val > 0) {
-                                        return {
-                                            x: indicatorData.dates[i],
-                                            y: val,
-                                            text: 'Resistance',
-                                            showarrow: true,
-                                            arrowhead: 2,
-                                            ax: 0,
-                                            ay: -30,
-                                            bgcolor: 'rgba(231, 76, 60, 0.8)',
-                                            bordercolor: 'rgba(0,0,0,0)',
-                                            borderpad: 4,
-                                            font: { size: 12, color: '#fff' }
-                                        };
-                                    }
-                                    return null;
-                                }).filter(ann => ann !== null);
-                                
-                                layout.annotations = [...supportPoints, ...resistancePoints];
-                            }
-                            break;
-                    }
-                    
-                    // Add buy/sell signals if available
-                    if (indicatorData.buy_signals && indicatorData.sell_signals) {
-                        const buySignals = [];
-                        const sellSignals = [];
-                        
-                        for (let i = 0; i < indicatorData.dates.length; i++) {
-                            if (indicatorData.buy_signals[i] === 1) {
-                                buySignals.push({
-                                    x: indicatorData.dates[i],
-                                    y: indicatorData.low[i] * 0.98,  // Position below price
-                                    marker: {
-                                        size: 12,
-                                        symbol: 'triangle-up',
-                                        color: '#27ae60'
-                                    },
-                                    name: 'Buy Signal'
-                                });
-                            }
-                            if (indicatorData.sell_signals[i] === 1) {
-                                sellSignals.push({
-                                    x: indicatorData.dates[i],
-                                    y: indicatorData.high[i] * 1.02,  // Position above price
-                                    marker: {
-                                        size: 12,
-                                        symbol: 'triangle-down',
-                                        color: '#e74c3c'
-                                    },
-                                    name: 'Sell Signal'
-                                });
-                            }
-                        }
-                        
-                        if (buySignals.length > 0) {
-                            data.push({
-                                x: buySignals.map(p => p.x),
-                                y: buySignals.map(p => p.y),
-                                mode: 'markers',
-                                type: 'scatter',
-                                name: 'Buy Signal',
-                                marker: {
-                                    size: 12,
-                                    symbol: 'triangle-up',
-                                    color: '#27ae60'
-                                }
-                            });
-                        }
-                        
-                        if (sellSignals.length > 0) {
-                            data.push({
-                                x: sellSignals.map(p => p.x),
-                                y: sellSignals.map(p => p.y),
-                                mode: 'markers',
-                                type: 'scatter',
-                                name: 'Sell Signal',
-                                marker: {
-                                    size: 12,
-                                    symbol: 'triangle-down',
-                                    color: '#e74c3c'
-                                }
-                            });
-                        }
-                    }
+                if (data.error) {
+                    throw new Error(data.error);
                 }
                 
-                // Plot the chart
-                Plotly.newPlot('taChart', data, layout, { responsive: true })
-                    .then(() => {
-                        logInfo('Technical chart updated successfully');
-                    })
-                    .catch(error => {
-                        const errorMsg = `Error updating technical chart: ${error.message}`;
-                        console.error(errorMsg);
-                        displayError('taChart', errorMsg, 'technical chart update');
-                    });
-                    
+                displayFundamentals(data);
+                logInfo('Fundamentals fetched and displayed successfully for ' + ticker);
+                return data;
+                
             } catch (error) {
-                const errorMsg = `Error updating technical chart: ${error.message}`;
+                const errorMsg = `Failed to load fundamentals for ${ticker}: ${error.message}`;
                 console.error(errorMsg);
-                displayError('taChart', errorMsg, 'technical chart update');
+                displayError('fundamentals', errorMsg, 'fundamentals fetch');
+                return null;
             }
         }
 
@@ -2563,33 +2292,6 @@ HTML_TEMPLATE = '''
             }
         }
 
-        async function fetchFundamentals(ticker) {
-            try {
-                logInfo(`Fetching fundamentals for ${ticker}`);
-                const response = await fetch(`/fundamentals/${ticker}`);
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }
-                
-                const data = await response.json();
-                
-                if (data.error) {
-                    throw new Error(data.error);
-                }
-                
-                displayFundamentals(data);
-                logInfo('Fundamentals fetched and displayed successfully for ' + ticker);
-                return data;
-                
-            } catch (error) {
-                const errorMsg = `Failed to load fundamentals for ${ticker}: ${error.message}`;
-                console.error(errorMsg);
-                displayError('fundamentals', errorMsg, 'fundamentals fetch');
-                return null;
-            }
-        }
-
         function showError(message) {
             const stockInfo = document.getElementById('stockInfo');
             stockInfo.innerHTML = `<div class="error"><i class="fas fa-exclamation-triangle"></i> ${message}</div>`;
@@ -2602,72 +2304,7 @@ HTML_TEMPLATE = '''
             stockInfo.innerHTML = `<div class="warning"><i class="fas fa-exclamation-triangle"></i> ${message}</div>`;
         }
 
-        // Button event listeners
-        document.getElementById('modelBtn').addEventListener('click', () => {
-            try {
-                if (!selectedTicker) return;
-                document.getElementById('modelSection').style.display = 'block';
-                document.getElementById('actualSection').style.display = 'none';
-                document.getElementById('taSection').style.display = 'none';
-                document.getElementById('modelBtn').classList.add('active');
-                document.getElementById('actualBtn').classList.remove('active');
-                document.getElementById('taBtn').classList.remove('active');
-                
-                if (historicalData) {
-                    displayModelSection(historicalData);
-                } else {
-                    displayError('chart', 'No historical data available for model comparison', 'model section switch');
-                }
-            } catch (error) {
-                const errorMsg = `Error switching to model view: ${error.message}`;
-                console.error(errorMsg);
-                displayError('chart', errorMsg, 'model section switch');
-            }
-        });
-
-        document.getElementById('actualBtn').addEventListener('click', async () => {
-            try {
-                if (!selectedTicker) return;
-                document.getElementById('modelSection').style.display = 'none';
-                document.getElementById('actualSection').style.display = 'block';
-                document.getElementById('taSection').style.display = 'none';
-                document.getElementById('modelBtn').classList.remove('active');
-                document.getElementById('actualBtn').classList.add('active');
-                document.getElementById('taBtn').classList.remove('active');
-                
-                const days = parseInt(document.getElementById('actualRangeSelect').value);
-                const data = await fetchActualPrices(selectedTicker, days);
-                if (data) {
-                    displayActualSection(data);
-                } else {
-                    displayError('actualChart', 'Unable to fetch actual price data', 'actual section switch');
-                }
-            } catch (error) {
-                const errorMsg = `Error switching to actual view: ${error.message}`;
-                console.error(errorMsg);
-                displayError('actualChart', errorMsg, 'actual section switch');
-            }
-        });
-
-        document.getElementById('taBtn').addEventListener('click', async () => {
-            try {
-                if (!selectedTicker) return;
-                document.getElementById('modelSection').style.display = 'none';
-                document.getElementById('actualSection').style.display = 'none';
-                document.getElementById('taSection').style.display = 'block';
-                document.getElementById('modelBtn').classList.remove('active');
-                document.getElementById('actualBtn').classList.remove('active');
-                document.getElementById('taBtn').classList.add('active');
-                
-                const days = parseInt(document.getElementById('taRangeSelect').value);
-                await fetchPriceData(selectedTicker);
-            } catch (error) {
-                const errorMsg = `Error switching to technical view: ${error.message}`;
-                console.error(errorMsg);
-                displayError('taChart', errorMsg, 'technical section switch');
-            }
-        });
-
+        // Table range selector event listener
         document.getElementById('tableRangeSelect').addEventListener('change', () => {
             try {
                 const days = parseInt(document.getElementById('tableRangeSelect').value);
@@ -2680,94 +2317,173 @@ HTML_TEMPLATE = '''
                 displayError('tableBody', errorMsg, 'table range update');
             }
         });
-
-        document.getElementById('actualRangeSelect').addEventListener('change', async () => {
+        
+        // Closing price chart
+        async function loadClosingPriceChart(ticker) {
             try {
-                if (!selectedTicker) return;
-                const days = parseInt(document.getElementById('actualRangeSelect').value);
-                const data = await fetchActualPrices(selectedTicker, days);
-                if (data) {
-                    displayActualSection(data);
-                } else {
-                    displayError('actualChart', 'Unable to fetch price data for selected range', 'actual range update');
-                }
-            } catch (error) {
-                const errorMsg = `Error updating actual price range: ${error.message}`;
-                console.error(errorMsg);
-                displayError('actualChart', errorMsg, 'actual range update');
-            }
-        });
-
-        document.getElementById('taRangeSelect').addEventListener('change', async () => {
-            try {
-                if (!selectedTicker) return;
-                const days = parseInt(document.getElementById('taRangeSelect').value);
-                await fetchPriceData(selectedTicker);
-            } catch (error) {
-                const errorMsg = `Error changing range: ${error.message}`;
-                console.error(errorMsg);
-                displayError('taChart', errorMsg, 'range change');
-            }
-        });
-
-        document.getElementById('indicatorSelect').addEventListener('change', () => {
-            try {
-                updateTechnicalChart();
-            } catch (error) {
-                const errorMsg = `Error changing indicator: ${error.message}`;
-                console.error(errorMsg);
-                displayError('taChart', errorMsg, 'indicator change');
-            }
-        });
-
-        async function fetchPriceData(ticker) {
-            try {
-                const days = parseInt(document.getElementById('taRangeSelect').value);
-                logInfo(`Fetching price data for ${ticker}, ${days} days`);
-                const response = await fetch(`/prices/${ticker}?range=${days}`);
+                const range = document.getElementById('closingPriceRange').value;
+                logInfo(`Loading closing price chart for ${ticker}, range: ${range} days`);
                 
+                const response = await fetch(`/closing_price/${ticker}?range=${range}`);
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 }
                 
                 const data = await response.json();
-                
                 if (data.error) {
                     throw new Error(data.error);
                 }
                 
-                priceData = data;
-                logInfo('Price data received successfully', {
-                    ticker: ticker,
-                    days: days,
-                    dataPoints: data.dates?.length || 0
-                });
+                // Create Plotly trace
+                const trace = {
+                    x: data.dates,
+                    y: data.close,
+                    type: 'scatter',
+                    mode: 'lines+markers',
+                    name: 'Closing Price',
+                    line: {color: '#667eea', width: 2},
+                    marker: {size: 6, color: '#764ba2'}
+                };
                 
-                // Now fetch indicators for the same range
-                await fetchIndicatorData(ticker, days);
+                const layout = {
+                    title: `${ticker} Closing Price (${range} Days)`,
+                    xaxis: {title: 'Date'},
+                    yaxis: {title: 'Price (USD)'},
+                    showlegend: true,
+                    plot_bgcolor: 'rgba(0,0,0,0)',
+                    paper_bgcolor: 'rgba(0,0,0,0)',
+                    font: {color: '#2c3e50'},
+                    margin: {l: 50, r: 30, t: 50, b: 50}
+                };
                 
-                return data;
+                Plotly.newPlot('closingPriceChart', [trace], layout);
+                logInfo('Closing price chart rendered successfully');
                 
             } catch (error) {
-                const errorMsg = `Failed to fetch price data for ${ticker}: ${error.message}`;
+                const errorMsg = `Error loading closing price chart: ${error.message}`;
                 console.error(errorMsg);
-                displayError('taChart', errorMsg, 'price data fetch');
-                return null;
+                displayError('closingPriceChart', errorMsg, 'closing price chart');
             }
         }
+        
+        // Candlestick chart
+        async function loadCandlestickChart(ticker) {
+            try {
+                const range = document.getElementById('candlestickRange').value;
+                logInfo(`Loading candlestick chart for ${ticker}, range: ${range} days`);
+                
+                const response = await fetch(`/candlestick/${ticker}?range=${range}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                // Create candlestick trace
+                const trace = {
+                    x: data.dates,
+                    close: data.close,
+                    high: data.high,
+                    low: data.low,
+                    open: data.open,
+                    type: 'candlestick',
+                    name: 'Candlestick',
+                    increasing: {line: {color: '#27ae60'}},
+                    decreasing: {line: {color: '#e74c3c'}}
+                };
+                
+                const layout = {
+                    title: `${ticker} Candlestick (${range} Days)`,
+                    xaxis: {title: 'Date', rangeslider: {visible: false}},
+                    yaxis: {title: 'Price (USD)'},
+                    showlegend: false,
+                    plot_bgcolor: 'rgba(0,0,0,0)',
+                    paper_bgcolor: 'rgba(0,0,0,0)',
+                    font: {color: '#2c3e50'},
+                    margin: {l: 50, r: 30, t: 50, b: 50}
+                };
+                
+                Plotly.newPlot('candlestickChart', [trace], layout);
+                
+                // Display patterns
+                displayPatterns(data.patterns);
+                logInfo('Candlestick chart rendered successfully');
+                
+            } catch (error) {
+                const errorMsg = `Error loading candlestick chart: ${error.message}`;
+                console.error(errorMsg);
+                displayError('candlestickChart', errorMsg, 'candlestick chart');
+            }
+        }
+        
+        // Display candlestick patterns
+        function displayPatterns(patterns) {
+            try {
+                const tableContainer = document.getElementById('patternTable');
+                if (!patterns || Object.keys(patterns).length === 0) {
+                    tableContainer.innerHTML = '<p>No candlestick patterns detected in this time frame.</p>';
+                    return;
+                }
+                
+                let tableHtml = `
+                    <div class="table-wrapper">
+                        <table class="comparison-table">
+                            <thead>
+                                <tr>
+                                    <th>Pattern</th>
+                                    <th>Detected</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                `;
+                
+                for (const [pattern, detected] of Object.entries(patterns)) {
+                    const formattedPattern = pattern.charAt(0).toUpperCase() + pattern.slice(1);
+                    tableHtml += `
+                        <tr>
+                            <td>${formattedPattern}</td>
+                            <td class="${detected === 'Yes' ? 'signal-buy' : 'signal-sell'}">
+                                ${detected}
+                            </td>
+                        </tr>
+                    `;
+                }
+                
+                tableHtml += `
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+                
+                tableContainer.innerHTML = tableHtml;
+                logInfo('Pattern table displayed successfully');
+            } catch (error) {
+                const errorMsg = `Error displaying patterns: ${error.message}`;
+                console.error(errorMsg);
+                displayError('patternTable', errorMsg, 'pattern display');
+            }
+        }
+        
+        // Add event listeners for new range selectors
+        document.getElementById('closingPriceRange').addEventListener('change', () => {
+            if (selectedTicker) {
+                loadClosingPriceChart(selectedTicker);
+            }
+        });
+        
+        document.getElementById('candlestickRange').addEventListener('change', () => {
+            if (selectedTicker) {
+                loadCandlestickChart(selectedTicker);
+            }
+        });
 
         // Add debugging to check if Plotly is loaded
         document.addEventListener('DOMContentLoaded', function() {
             try {
-                logInfo('DOM loaded, Plotly available: ' + (typeof Plotly !== 'undefined'));
-                if (typeof Plotly === 'undefined') {
-                    console.error('Plotly is not loaded! Charts will not work.');
-                    // Display error message in chart containers
-                    const chartContainers = ['chart', 'actualChart', 'taChart'];
-                    chartContainers.forEach(containerId => {
-                        displayError(containerId, 'Plotly charting library failed to load. Charts will not be available.', 'Plotly initialization');
-                    });
-                }
+                logInfo('DOM loaded');
                 loadTickerData();
             } catch (error) {
                 const errorMsg = `Error during DOM initialization: ${error.message}`;
@@ -2830,10 +2546,9 @@ if __name__ == '__main__':
                 print(f"\n🤖 Tickers with AI models: {', '.join(sorted(trained_models)[:10])}{'...' if len(trained_models) > 10 else ''}")
                 
             print(f"\n🆕 New Features:")
-            print(f"   • Model vs Actual comparison restored")
-            print(f"   • Technical analysis with RSI and Moving Averages")
-            print(f"   • Buy/Sell signals for all indicators")
-            print(f"   • Time-frame adaptive indicator calculations")
+            print(f"   • Added closing price charts with time frame selector")
+            print(f"   • Added candlestick charts with pattern recognition")
+            print(f"   • Added technical signals table")
             
             logger.info("Starting Flask application...")
             app.run(debug=True, host='0.0.0.0', port=available_port)
