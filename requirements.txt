@@ -4,10 +4,12 @@ pandas
 yfinance
 pytickersymbols
 tensorflow==2.16.1
+keras
 scikit-learn
+matplotlib
 plotly
 requests
 schedule
 gunicorn
 ta
-yaml
+PyYAML
