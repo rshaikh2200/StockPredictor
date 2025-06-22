@@ -11,5 +11,7 @@ plotly
 requests
 schedule
 gunicorn
-ta
+pandas_ta
 PyYAML
+mplfinance
+robin-stocks
