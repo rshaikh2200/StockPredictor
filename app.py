@@ -18,7 +18,6 @@ import traceback
 import logging
 warnings.filterwarnings('ignore')
 
-#hi
 # Additional imports for TA analysis
 import ta
 from ta.utils import dropna
@@ -833,19 +832,26 @@ class PushNotifier:
         self.user = pushover_user
         self.url = "https://api.pushover.net/1/messages.json"
     
-    def send_push_notification(self, predictions):
+    def send_push_notification(self, notifications):
         """Send push notification via Pushover"""
         try:
-            message = f"🚀 {len(predictions)} High-Confidence Stock Predictions:\n\n"
-            for pred in predictions:
-                trend_emoji = "🚀" if "Up" in pred['direction'] else "📉"
-                message += f"{trend_emoji} {pred['ticker']}: {pred['direction']} ({pred['confidence']}%)\n"
-                message += f"Current: ${pred['current_price']} → 30d: ${pred['30_day_price']}\n"
-                message += f"Change: {pred['30_day_change']:+.1f}%\n\n"
+            # Build message including indicators, direction, confidence, prices and changes
+            message = f"🚨 Indicator Alerts (Confidence > 50%)\n\n"
+            for note in notifications:
+                # note contains: ticker, indicators dict, direction, confidence, prices and changes
+                message += f"{note['ticker']} - Dir: {note['direction']} ({note['confidence']}%)\n"
+                # List all indicators and their signals
+                for ind, sig in note['indicators'].items():
+                    message += f"   {ind}: {sig}\n"
+                message += f"   Current: ${note['current_price']:.2f}\n"
+                for pd in ['5_days', '30_days', '90_days']:
+                    pinfo = note[pd]
+                    message += f"   {pd[:-5]}d: ${pinfo['price']:.2f} (Δ{pinfo['change']:+.2f}, {pinfo['percent_change']:+.2f}%)\n"
+                message += "\n"
             data = {
                 "token": self.token,
                 "user": self.user,
-                "title": "📈 Stock Predictions Alert",
+                "title": "🔔 Technical Indicator Alert",
                 "message": message[:1024],
                 "priority": 1,
                 "sound": "cashregister"
@@ -853,24 +859,18 @@ class PushNotifier:
             response = requests.post(self.url, data=data)
             if response.status_code == 200:
                 logger.info("Push notification sent successfully")
-                print("Push notification sent successfully")
                 return True
             else:
-                error_msg = f"Failed to send push notification: {response.text}"
-                logger.error(error_msg)
-                print(error_msg)
+                logger.error(f"Failed to send push notification: {response.text}")
                 return False
         except Exception as e:
-            error_msg = f"Error sending push notification: {str(e)}"
-            logger.error(error_msg)
-            logger.error(traceback.format_exc())
-            print(error_msg)
+            logger.error(f"Error sending push notification: {e}\n{traceback.format_exc()}")
             return False
+
 
 # =============================================================================
 # MAIN NOTIFICATION SYSTEM
 # =============================================================================
-
 class StockNotificationSystem:
     def __init__(self, app, pushover_token=None, pushover_user=None):
         self.app = app
@@ -889,8 +889,9 @@ class StockNotificationSystem:
             CREATE TABLE IF NOT EXISTS notifications (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 ticker TEXT,
-                confidence REAL,
+                indicator TEXT,
                 direction TEXT,
+                confidence REAL,
                 price REAL,
                 prediction_date TEXT,
                 sent_date TEXT
@@ -898,139 +899,93 @@ class StockNotificationSystem:
         ''')
         conn.commit()
         conn.close()
-    
-    def get_high_confidence_predictions(self, min_confidence=50):
-        high_confidence_predictions = []
+
+    def get_signal_notifications(self, min_conf=50):
+        notifications = []
         with self.app.app_context():
-            available_tickers = get_available_models()
-            for ticker in available_tickers:
+            tickers = get_available_models()
+            for ticker in tickers:
                 try:
+                    # 1. Load model predictions
                     model = load_best_model(ticker)
-                    if model is None:
-                        continue
+                    if not model: continue
                     data = get_stock_data(ticker)
-                    if data is None:
-                        continue
-                    close_prices = data['Close'].values.astype('float32').reshape(-1, 1)
-                    scaler = MinMaxScaler(feature_range=(0, 1))
-                    scaled_prices = scaler.fit_transform(close_prices)
-                    if len(scaled_prices) < WINDOW:
-                        continue
-                    last_window = scaled_prices[-WINDOW:, 0]
-                    X = np.array([last_window]).reshape(1, 1, WINDOW)
-                    current_price = close_prices[-1][0]
-                    
-                    # Make predictions
+                    if data is None: continue
+                    close = data['Close'].values.astype('float32').reshape(-1,1)
+                    scaler = MinMaxScaler((0,1))
+                    scaled = scaler.fit_transform(close)
+                    if len(scaled) < WINDOW: continue
+                    window = scaled[-WINDOW:,0]
+                    X = np.array([window]).reshape(1,1,WINDOW)
+                    current_price = float(close[-1][0])
+                    # Predictions (5,30,90 days)
+                    # Using same daily rate from model month output
                     pred_next, pred_month, pred_dir = model.predict(X, verbose=0)
                     direction_label = int(np.argmax(pred_dir[0]))
                     direction_text = assign_label_text(direction_label)
-                    confidence = round(float(np.max(pred_dir[0])) * 100, 1)
-                    
-                    if confidence > min_confidence:
-                        # Calculate 30-day prediction
-                        next_day_price = float(scaler.inverse_transform([[pred_next[0][0]]])[0][0])
-                        month_price = float(scaler.inverse_transform([[pred_month[0][0]]])[0][0])
-                        daily_change_rate = (month_price - current_price) / 20
-                        predicted_30_price = current_price + (daily_change_rate * 30)
-                        price_change = predicted_30_price - current_price
-                        percent_change = (price_change / current_price) * 100
-                        
-                        pred_data = {
-                            'ticker': ticker,
-                            'current_price': round(current_price, 2),
-                            'direction': direction_text,
-                            'confidence': confidence,
-                            '30_day_price': round(predicted_30_price, 2),
-                            '30_day_change': round(percent_change, 2)
+                    confidence = round(float(np.max(pred_dir[0]))*100,1)
+                    if confidence <= min_conf: continue
+                    month_price = float(scaler.inverse_transform([[pred_month[0][0]]])[0][0])
+                    daily_rate = (month_price - current_price)/20
+                    # build 5,30,90 predictions
+                    preds = {}
+                    for days in [5,30,90]:
+                        pr = current_price + daily_rate*days
+                        change = pr - current_price
+                        percent = (change/current_price)*100
+                        preds[f'{days}_days'] = {'price':pr,'change':round(change,2),'percent_change':round(percent,2)}
+                    # 2. Fetch latest indicator signals
+                    sigs_resp = technical_indicators(ticker)
+                    sigs = {} if 'error' in sigs_resp.json() else sigs_resp.json()['signals'][-1]
+                    # check any Buy/Sell
+                    if any(val in ['Buy','Sell'] for val in sigs.values()):
+                        note = {
+                            'ticker':ticker,
+                            'direction':direction_text,
+                            'confidence':confidence,
+                            'current_price':current_price,
+                            'indicators':sigs,
+                            **preds
                         }
-                        high_confidence_predictions.append(pred_data)
+                        notifications.append(note)
                 except Exception as e:
-                    error_msg = f"Error processing {ticker}: {str(e)}"
-                    logger.error(error_msg)
-                    logger.error(traceback.format_exc())
-                    print(error_msg)
-                    continue
-        return high_confidence_predictions
-    
-    def send_notifications(self, predictions):
-        if not predictions:
-            logger.info("No high-confidence predictions to send")
-            print("No high-confidence predictions to send")
+                    logger.error(f"Error processing {ticker}: {e}\n{traceback.format_exc()}")
+        return notifications
+
+    def send_notifications(self, notifications):
+        if not notifications:
+            logger.info("No indicator notifications to send")
             return
         if self.push_notifier:
-            success = self.push_notifier.send_push_notification(predictions)
-            if success:
-                self.log_notifications(predictions)
+            if self.push_notifier.send_push_notification(notifications):
+                self.log_notifications(notifications)
         else:
-            print("Push notifications not configured. Set PUSHOVER_TOKEN and PUSHOVER_USER.")
-    
-    def log_notifications(self, predictions):
-        try:
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-            for pred in predictions:
-                cursor.execute('''
-                    INSERT INTO notifications (ticker, confidence, direction, price, prediction_date, sent_date)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                ''', (
-                    pred['ticker'],
-                    pred['confidence'],
-                    pred['direction'],
-                    pred['current_price'],
-                    datetime.now().strftime('%Y-%m-%d'),
-                    datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            print("Push notifications not configured.")
+
+    def log_notifications(self, notifications):
+        conn = sqlite3.connect(self.db_path)
+        cur = conn.cursor()
+        for note in notifications:
+            for ind, sig in note['indicators'].items():
+                cur.execute('''INSERT INTO notifications (ticker, indicator, direction, confidence, price, prediction_date, sent_date)
+                               VALUES (?,?,?,?,?,?,?)''',(
+                    note['ticker'], ind, sig, note['confidence'], note['current_price'], datetime.now().strftime('%Y-%m-%d'), datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 ))
-            conn.commit()
-            conn.close()
-            logger.info(f"Logged {len(predictions)} notifications to database")
-        except Exception as e:
-            error_msg = f"Error logging notifications: {e}"
-            logger.error(error_msg)
-            logger.error(traceback.format_exc())
-    
+        conn.commit()
+        conn.close()
+
     def start_scheduler(self):
-        def run_scheduler():
-            schedule.every().day.at("09:00").do(self.daily_notification_job)
-            schedule.every().hour.do(self.hourly_notification_job)
+        def run_sched():
+            # Schedule combined notifications at 09:00 and 15:30 EST daily
+            schedule.every().day.at("09:00").do(lambda: self.send_notifications(self.get_signal_notifications(50)))
+            schedule.every().day.at("15:30").do(lambda: self.send_notifications(self.get_signal_notifications(50)))
             while True:
                 schedule.run_pending()
                 time.sleep(60)
-        scheduler_thread = threading.Thread(target=run_scheduler, daemon=True)
-        scheduler_thread.start()
-        logger.info("📱 Push notification scheduler started!")
-        print("📱 Push notification scheduler started!")
-        print("Daily notifications at 9:00 AM, hourly checks during market hours")
-    
-    def daily_notification_job(self):
-        try:
-            logger.info("🔍 Running daily high-confidence prediction check...")
-            print("🔍 Running daily high-confidence prediction check...")
-            predictions = self.get_high_confidence_predictions(min_confidence=50)
-            if predictions:
-                logger.info(f"📈 Found {len(predictions)} high-confidence predictions")
-                print(f"📈 Found {len(predictions)} high-confidence predictions")
-                self.send_notifications(predictions)
-            else:
-                logger.info("📊 No high-confidence predictions found today")
-                print("📊 No high-confidence predictions found today")
-        except Exception as e:
-            error_msg = f"Error in daily notification job: {e}"
-            logger.error(error_msg)
-            logger.error(traceback.format_exc())
-    
-    def hourly_notification_job(self):
-        try:
-            current_hour = datetime.now().hour
-            if 9 <= current_hour <= 16:
-                predictions = self.get_high_confidence_predictions(min_confidence=75)
-                if predictions:
-                    logger.info(f"⚡ Hourly check: Found {len(predictions)} very high-confidence predictions")
-                    print(f"⚡ Hourly check: Found {len(predictions)} very high-confidence predictions")
-                    self.send_notifications(predictions)
-        except Exception as e:
-            error_msg = f"Error in hourly notification job: {e}"
-            logger.error(error_msg)
-            logger.error(traceback.format_exc())
+        t = threading.Thread(target=run_sched, daemon=True)
+        t.start()
+        logger.info("Indicator notification scheduler started (daily at 09:00 and 15:30 EST).")
+        print("Indicator notification scheduler started (daily at 09:00 and 15:30 EST).")
 
 # =============================================================================
 # NOTIFICATION ROUTES
@@ -2562,4 +2517,5 @@ if __name__ == '__main__':
         error_msg = f"❌ Critical error during application startup: {e}"
         logger.error(error_msg)
         logger.error(traceback.format_exc())
+        print(error_msg)
         print(error_msg)
