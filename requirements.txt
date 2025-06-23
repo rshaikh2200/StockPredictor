@@ -1,5 +1,5 @@
-fboto3
-Flask
+boto3
+flask
 gunicorn
 keras
 matplotlib
@@ -10,9 +10,7 @@ pandas_ta
 plotly
 PyYAML
 pytickersymbols
-robin-stocks
 scikit-learn
 schedule
 tensorflow==2.16.1
-ta
 yfinance
