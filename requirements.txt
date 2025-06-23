@@ -14,3 +14,4 @@ scikit-learn
 schedule
 tensorflow==2.16.1
 yfinance
+ta
