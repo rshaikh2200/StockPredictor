@@ -1043,8 +1043,8 @@ class StockNotificationSystem:
     def start_scheduler(self):
         def run_sched():
             # Schedule combined notifications at 09:00 and 15:30 EST daily
-            schedule.every().day.at("09:00").do(lambda: self.send_notifications(self.get_signal_notifications(50)))
-            schedule.every().day.at("15:30").do(lambda: self.send_notifications(self.get_signal_notifications(50)))
+            schedule.every().day.at("09:30").do(lambda: self.send_notifications(self.get_signal_notifications(50)))
+            schedule.every().day.at("16:30").do(lambda: self.send_notifications(self.get_signal_notifications(50)))
             while True:
                 schedule.run_pending()
                 time.sleep(60)
