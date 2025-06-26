@@ -1,3 +1,6 @@
+#-----------------------------------------------------------------------------------------------------------
+#import python modules 
+
 from flask import Flask, render_template_string, jsonify, request
 import numpy as np
 import pandas as pd
@@ -23,7 +26,7 @@ import os
 
 warnings.filterwarnings('ignore')
 
-# Additional imports for TA analysis
+
 import ta
 from ta.utils import dropna
 from ta.volatility import BollingerBands
@@ -34,16 +37,16 @@ from ta.volume import OnBalanceVolumeIndicator
 import mplfinance as mpf
 import matplotlib.pyplot as plt
 from io import BytesIO
-import pandas_ta as ta_pat  # For candlestick pattern recognition
+import pandas_ta as ta_pat  
 
-# Additional imports for push notifications
 import requests
 import schedule
 import time
 import threading
 import sqlite3
 
-# Configure logging for error tracking
+#-----------------------------------------------------------------------------------------------------------
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
@@ -69,7 +72,7 @@ r2 = session.client(
     aws_secret_access_key=R2_SECRET_ACCESS_KEY
 )
 
-# Custom JSON encoder to handle numpy types
+
 def convert_numpy_types(obj):
     """Convert numpy types to native Python types for JSON serialization"""
     if isinstance(obj, np.integer):
@@ -80,6 +83,9 @@ def convert_numpy_types(obj):
         return obj.tolist()
     return obj
 
+#-----------------------------------------------------------------------------------------------------------
+# Initializing Tiker and Stock data
+
 app = Flask(__name__)
 
 # Constants
@@ -88,17 +94,6 @@ END_DATE = datetime.now().strftime("%Y-%m-%d")
 WINDOW = 20
 HORIZON = 20
 
-# Candlestick patterns - short-term (1-4 weeks) and long-term (>1 month)
-SHORT_TERM_PATTERNS = [
-    'DOJI', 'HAMMER', 'INVERTED_HAMMER', 'ENGULFING', 'HARAMI',
-    'PIERCING', 'DARK_CLOUD_COVER', 'KICKING', 'MORNING_STAR', 'EVENING_STAR'
-]
-
-LONG_TERM_PATTERNS = [
-    'HEAD_AND_SHOULDERS', 'DOUBLE_BOTTOM', 'DOUBLE_TOP',
-    'TRIPLE_BOTTOM', 'TRIPLE_TOP', 'RISING_WEDGE',
-    'FALLING_WEDGE', 'BELT_HOLD'
-]
 
 def get_sp500_tickers():
     """Return a list of S&P 500 tickers using the pytickersymbols package."""
@@ -113,15 +108,7 @@ def get_sp500_tickers():
         logger.error(error_msg)
         logger.error(traceback.format_exc())
         print(error_msg)
-        return sorted([
-            'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'META', 'NVDA', 'BRK-B',
-            'JNJ', 'V', 'WMT', 'UNH', 'PG', 'HD', 'MA', 'BAC', 'ADBE', 'PFE',
-            'DIS', 'NFLX', 'CRM', 'XOM', 'TMO', 'ABT', 'COST', 'CSCO', 'VZ',
-            'INTC', 'CVX', 'CMCSA', 'DHR', 'ORCL', 'PEP', 'NKE', 'KO', 'ACN',
-            'MRK', 'LLY', 'ABBV', 'MDT', 'TXN', 'QCOM', 'NEE', 'HON', 'UPS',
-            'LOW', 'IBM', 'AMD', 'T', 'BMY', 'CAT', 'COP', 'UNP', 'GS', 'MS',
-            'LMT', 'BA', 'SPGI', 'AMGN', 'BLK', 'SYK', 'AXP', 'MMM', 'MDLZ'
-        ])
+       
 
 
 def get_available_tickers():
@@ -154,7 +141,6 @@ def get_available_models():
     continuation_token = None
 
     while True:
-        # on first call, token is None
         if continuation_token:
             resp = r2.list_objects_v2(
                 Bucket=R2_BUCKET,
@@ -176,7 +162,6 @@ def get_available_models():
                 if ticker not in tickers:
                     tickers.append(ticker)
 
-        # if there are more pages, keep going
         if resp.get('IsTruncated'):  
             continuation_token = resp.get('NextContinuationToken')
         else:
@@ -188,10 +173,8 @@ def get_available_models():
 
 def load_best_model(ticker):
     try:
-        # List all model files for this ticker in the R2 bucket
         resp = r2.list_objects_v2(Bucket=R2_BUCKET, Prefix=f"{R2_PREFIX}/{ticker}_model_epoch_")
         contents = resp.get('Contents', [])
-        # Filter and sort
         keys = sorted([obj['Key'] for obj in contents if obj['Key'].endswith('.keras')])
         if not keys:
             logger.warning(f"No model files found for ticker {ticker} in R2")
@@ -199,7 +182,6 @@ def load_best_model(ticker):
         best_key = keys[-1]
         logger.info(f"Loading model for {ticker} from R2 key: {best_key}")
 
-        # Download into a temporary file
         obj = r2.get_object(Bucket=R2_BUCKET, Key=best_key)
         body = obj['Body'].read()
         with tempfile.NamedTemporaryFile(suffix='.keras', delete=False) as tmp:
@@ -209,7 +191,6 @@ def load_best_model(ticker):
 
         model = load_model(tmp_path)
 
-        # Clean up temp file
         try:
             os.unlink(tmp_path)
         except Exception:
@@ -230,10 +211,8 @@ def get_stock_data(ticker, days_back=500):
     try:
         logger.info(f"Fetching stock data for {ticker}: {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}")
         
-        # Use yfinance Ticker object for more reliable data fetching
         ticker_obj = yf.Ticker(ticker)
         
-        # Try to get historical data
         data = ticker_obj.history(
             start=start_date.strftime("%Y-%m-%d"),
             end=end_date.strftime("%Y-%m-%d"),
@@ -246,10 +225,8 @@ def get_stock_data(ticker, days_back=500):
             print(error_msg)
             return None
             
-        # Reset index to get Date as a column
         data = data.reset_index()
-        
-        # Ensure we have the required columns
+  
         required_columns = ['Date', 'Open', 'High', 'Low', 'Close', 'Volume']
         missing_columns = [col for col in required_columns if col not in data.columns]
         
@@ -269,6 +246,9 @@ def get_stock_data(ticker, days_back=500):
         logger.error(traceback.format_exc())
         print(error_msg)
         return None
+    
+#-----------------------------------------------------------------------------------------------------------
+# Comparison table 
 
 
 def get_historical_comparison(ticker, days=60):
@@ -306,8 +286,9 @@ def get_historical_comparison(ticker, days=60):
         print(error_msg)
         return None
 
-# ─────────────────────────────────────────────────────────────
-# Update these to match pandas_ta’s CDL_* function names:
+# ─────────────────────────────────────────────────────────────--------------------------------------
+# Candle Stick Pattern 
+
 SHORT_TERM_PATTERNS = [
     'DOJI', 'HAMMER', 'INVERTED_HAMMER', 'ENGULFING', 'HARAMI',
     'PIERCING', 'DARK_CLOUD_COVER', 'KICKING', 'MORNING_STAR', 'EVENING_STAR'
@@ -318,7 +299,6 @@ LONG_TERM_PATTERNS = [
     'TRIPLE_BOTTOM', 'TRIPLE_TOP', 'RISING_WEDGE',
     'FALLING_WEDGE', 'BELT_HOLD'
 ]
-# ─────────────────────────────────────────────────────────────
 
 def detect_candlestick_patterns(df, time_frame):
     """
@@ -332,19 +312,17 @@ def detect_candlestick_patterns(df, time_frame):
          any <0 → "Bearish"
       3) Otherwise → "No"
     """
-    # pick short vs. long term by your existing logic
     patterns = SHORT_TERM_PATTERNS if time_frame == '5' else LONG_TERM_PATTERNS
     results = {}
 
     for pat in patterns:
         try:
-            # build the pandas_ta function name, e.g. "CDLDOJI", "CDL_HAMMER" etc.
+         
             func_name = 'CDL' + pat
             series = getattr(ta_pat, func_name)(
                 df['Open'], df['High'], df['Low'], df['Close']
             )
 
-            # if the pattern function isn't present or returns nothing:
             if series is None or series.size == 0:
                 results[pat] = "No"
                 continue
@@ -377,6 +355,8 @@ def detect_candlestick_patterns(df, time_frame):
     return results
 
 
+# ─────────────────────────────────────────────────────────────--------------------------------------
+# App routes
 
 @app.route('/')
 def index():
@@ -415,16 +395,15 @@ def predict_stock(ticker):
         X = np.reshape(X, (X.shape[0], 1, WINDOW))
         current_price = close_prices[-1][0]
         
-        # Make predictions
+        
         predictions = {}
         pred_next, pred_month, pred_dir = model.predict(X, verbose=0)
         direction_label = int(np.argmax(pred_dir[0]))
         direction_text = assign_label_text(direction_label)
         next_day_price = float(scaler.inverse_transform([[pred_next[0][0]]])[0][0])
         month_price = float(scaler.inverse_transform([[pred_month[0][0]]])[0][0])
-        daily_change_rate = (month_price - current_price) / 20  # 20-day horizon from model
-        
-        # Define the time periods we're interested in
+        daily_change_rate = (month_price - current_price) / 20  
+
         time_periods = [5, 30, 90, 365]
         for days in time_periods:
             predicted_price = current_price + (daily_change_rate * days)
@@ -445,7 +424,7 @@ def predict_stock(ticker):
         predictions['last_updated'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         predictions['has_model'] = True
         
-        # Fetch additional metrics
+    
         try:
             logger.info(f"Fetching additional metrics for {ticker}")
             tk = yf.Ticker(ticker)
@@ -544,7 +523,7 @@ def historical_comparison(ticker):
         predicted_prices = []
         volumes = []
         
-        # Start from the point where we have enough data for a full window
+
         start_idx = WINDOW
         for i in range(start_idx, len(data)):
             window_data = scaled_prices[i-WINDOW:i, 0]
@@ -607,83 +586,6 @@ def prices(ticker):
         return jsonify({'error': str(e)})
 
 
-# --- Monkey-patch fundamentals retrieval ---
-def _patched_get_fundamentals(self, proxy=None):
-    url  = f"{self._scrape_url}/{self.ticker}/financials"
-    return utils.get_json(url, proxy)
-
-Ticker._get_fundamentals = _patched_get_fundamentals
-
-# --- Helper to convert DFs to JSON-safe records ---
-def df_to_records(df: pd.DataFrame) -> list:
-    if df.empty:
-        return []
-    df = df.copy()
-    df.columns = [
-        c.strftime('%Y-%m-%d') if isinstance(c, (pd.Timestamp, pd.Period)) else str(c)
-        for c in df.columns
-    ]
-    for col in df.columns:
-        if pd.api.types.is_datetime64_any_dtype(df[col]):
-            df[col] = df[col].dt.strftime('%Y-%m-%d')
-    df = df.where(pd.notnull(df), None)
-    return df.to_dict(orient='records')
-
-
-
-@app.route('/fundamentals/<ticker>')
-def fundamentals(ticker):
-    try:
-        logger.info(f"Fetching fundamentals for {ticker}")
-        tk = yf.Ticker(ticker)
-
-        # Annual earnings
-        earnings = (
-            tk.earnings.reset_index()
-            if getattr(tk, 'earnings', None) is not None else pd.DataFrame()
-        )
-        logger.info(f"Earnings rows: {len(earnings)}")
-
-        # Quarterly earnings
-        quarterly = (
-            tk.quarterly_earnings.reset_index()
-            if getattr(tk, 'quarterly_earnings', None) is not None else pd.DataFrame()
-        )
-        logger.info(f"Quarterly earnings rows: {len(quarterly)}")
-
-        # Balance sheet
-        bs = (
-            tk.balance_sheet.reset_index()
-            if getattr(tk, 'balance_sheet', None) is not None else pd.DataFrame()
-        )
-        logger.info(f"Balance sheet rows: {len(bs)}")
-
-        # Financials (income statement)
-        fin = (
-            tk.financials.reset_index()
-            if getattr(tk, 'financials', None) is not None else pd.DataFrame()
-        )
-        logger.info(f"Financials rows: {len(fin)}")
-
-        # Cashflow
-        cf = (
-            tk.cashflow.reset_index()
-            if getattr(tk, 'cashflow', None) is not None else pd.DataFrame()
-        )
-        logger.info(f"Cashflow rows: {len(cf)}")
-
-        logger.info(f"Successfully fetched all fundamentals for {ticker}")
-        return jsonify({
-            'earnings': df_to_records(earnings),
-            'quarterlyEarnings': df_to_records(quarterly),
-            'balanceSheet': df_to_records(bs),
-            'financials': df_to_records(fin),
-            'cashflow': df_to_records(cf)
-        })
-    except Exception as e:
-        logger.error(f"Error fetching fundamentals for {ticker}: {e}")
-        logger.error(traceback.format_exc())
-        return jsonify({'error': str(e)})
 
 @app.route('/indicators/<ticker>')
 def technical_indicators(ticker):
@@ -808,6 +710,8 @@ def technical_indicators(ticker):
                 'obv': obv_signal
             })
 
+        signals = signals[-10:][::-1]
+
         logger.info(f"Successfully calculated technical signals for {ticker} (day-trader settings)")
         return jsonify({'ticker': ticker, 'signals': signals})
 
@@ -886,6 +790,66 @@ def candlestick_data(ticker):
         logger.error(error_msg)
         logger.error(traceback.format_exc())
         return jsonify({'error': str(e)})
+    
+# ─────────────────────────────────────────────────────────────--------------------------------------
+# Stock Fundamentals
+
+def _patched_get_fundamentals(self, proxy=None):
+    url  = f"{self._scrape_url}/{self.ticker}/financials"
+    return utils.get_json(url, proxy)
+
+Ticker._get_fundamentals = _patched_get_fundamentals
+
+
+def df_to_records(df: pd.DataFrame) -> list:
+    if df.empty:
+        return []
+    df = df.copy()
+    df.columns = [
+        c.strftime('%Y-%m-%d') if isinstance(c, (pd.Timestamp, pd.Period)) else str(c)
+        for c in df.columns
+    ]
+    for col in df.columns:
+        if pd.api.types.is_datetime64_any_dtype(df[col]):
+            df[col] = df[col].dt.strftime('%Y-%m-%d')
+    df = df.where(pd.notnull(df), None)
+    return df.to_dict(orient='records')
+
+
+
+@app.route('/fundamentals/<ticker>')
+def fundamentals(ticker):
+    try:
+        tk = yf.Ticker(ticker)
+
+        earnings    = tk.earnings.reset_index()          if getattr(tk, 'earnings', None) is not None          else pd.DataFrame()
+        quarterly   = tk.quarterly_earnings.reset_index()if getattr(tk, 'quarterly_earnings', None) is not None else pd.DataFrame()
+        bs          = tk.balance_sheet.reset_index()    if getattr(tk, 'balance_sheet', None) is not None     else pd.DataFrame()
+        fin         = tk.financials.reset_index()       if getattr(tk, 'financials', None) is not None        else pd.DataFrame()
+        cf          = tk.cashflow.reset_index()         if getattr(tk, 'cashflow', None) is not None          else pd.DataFrame()
+
+        # quarterly tables (now also checking is not None)
+        qfin = tk.quarterly_financials.reset_index()    if getattr(tk, 'quarterly_financials', None) is not None    else pd.DataFrame()
+        qbs  = tk.quarterly_balance_sheet.reset_index() if getattr(tk, 'quarterly_balance_sheet', None) is not None else pd.DataFrame()
+        qcf  = tk.quarterly_cashflow.reset_index()      if getattr(tk, 'quarterly_cashflow', None) is not None      else pd.DataFrame()
+
+
+        return jsonify({
+            'earnings':               df_to_records(earnings),
+            'quarterlyEarnings':      df_to_records(quarterly),
+            'balanceSheet':           df_to_records(bs),
+            'financials':             df_to_records(fin),
+            'cashflow':               df_to_records(cf),
+            'quarterlyFinancials':    df_to_records(qfin),
+            'quarterlyBalanceSheet':  df_to_records(qbs),
+            'quarterlyCashflow':      df_to_records(qcf)
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)})
+    except Exception as e:
+        logger.error(f"Error fetching fundamentals for {ticker}: {e}")
+        logger.error(traceback.format_exc())
+        return jsonify({'error': str(e)})
 
 
 # =============================================================================
@@ -933,10 +897,6 @@ class PushNotifier:
             logger.error(f"Error sending push notification: {e}\n{traceback.format_exc()}")
             return False
 
-
-# =============================================================================
-# MAIN NOTIFICATION SYSTEM
-# =============================================================================
 class StockNotificationSystem:
     def __init__(self, app, pushover_token=None, pushover_user=None):
         self.app = app
@@ -1043,8 +1003,8 @@ class StockNotificationSystem:
     def start_scheduler(self):
         def run_sched():
             # Schedule combined notifications at 09:00 and 15:30 EST daily
-            schedule.every().day.at("09:30").do(lambda: self.send_notifications(self.get_signal_notifications(50)))
-            schedule.every().day.at("16:30").do(lambda: self.send_notifications(self.get_signal_notifications(50)))
+            schedule.every().day.at("09:00").do(lambda: self.send_notifications(self.get_signal_notifications(50)))
+            schedule.every().day.at("15:30").do(lambda: self.send_notifications(self.get_signal_notifications(50)))
             while True:
                 schedule.run_pending()
                 time.sleep(60)
@@ -1053,9 +1013,6 @@ class StockNotificationSystem:
         logger.info("Indicator notification scheduler started (daily at 09:00 and 15:30 EST).")
         print("Indicator notification scheduler started (daily at 09:00 and 15:30 EST).")
 
-# =============================================================================
-# NOTIFICATION ROUTES
-# =============================================================================
 
 def setup_notifications(app, pushover_token=None, pushover_user=None):
     notification_system = StockNotificationSystem(app, pushover_token, pushover_user)
@@ -1129,7 +1086,11 @@ def setup_notifications(app, pushover_token=None, pushover_user=None):
     notification_system.start_scheduler()
     return notification_system
 
-# HTML Template with updated time periods
+
+# =============================================================================
+# HTML & CSS Template
+# =============================================================================
+
 HTML_TEMPLATE = '''
 <!DOCTYPE html>
 <html lang="en">
@@ -1723,9 +1684,8 @@ HTML_TEMPLATE = '''
                             <div class="table-header">
                                 <label for="tableRangeSelect">Days:</label>
                                 <select id="tableRangeSelect">
+                                    <option value="5">5 Days</option>
                                     <option value="10">10 Days</option>
-                                    <option value="30">30 Days</option>
-                                    <option value="60" selected>60 Days</option>
                                 </select>
                             </div>
                             <div class="table-wrapper">
@@ -1748,7 +1708,7 @@ HTML_TEMPLATE = '''
                     </div>
                     
                     <div class="section-card" id="signals">
-    <h3><i class="fas fa-signal"></i> Technical Signals (Last 30 Days)</h3>
+    <h3><i class="fas fa-signal"></i> Technical Signals (Last 10 Days)</h3>
     <div class="table-wrapper">
         <table id="signalsTable" class="comparison-table">
             <thead>
@@ -1811,6 +1771,8 @@ HTML_TEMPLATE = '''
             </div>
         </div>
     </div>
+
+
 
     <script>
         let selectedTicker = null;
@@ -2029,7 +1991,7 @@ HTML_TEMPLATE = '''
                 }
                 
                 historicalData = data;
-                populateComparisonTable(data, 60);
+                populateComparisonTable(data, 10);
                 logInfo('Historical data fetched successfully for ' + ticker);
                 return data;
                 
@@ -2090,17 +2052,9 @@ HTML_TEMPLATE = '''
                                 ${data['90_days'].change >= 0 ? '+' : ''}${data['90_days'].change} (${data['90_days'].percent_change}%)
                             </div>
                         </div>
-                        <div class="prediction-card">
-                            <h3>365 Days</h3>
-                            <div class="prediction-price">${data['365_days'].price}</div>
-                            <div class="prediction-change ${data['365_days'].change >= 0 ? 'positive' : 'negative'}">
-                                ${data['365_days'].change >= 0 ? '+' : ''}${data['365_days'].change} (${data['365_days'].percent_change}%)
-                            </div>
+                      
                         </div>
-                        <div class="prediction-card direction-card">
-                            <div class="direction-label">${data.direction.label}</div>
-                            <div class="direction-confidence">Confidence: ${data.direction.confidence}%</div>
-                        </div>
+                     
                     </div>
                     <div style="text-align: center; color: #7f8c8d; margin-top: 15px; font-style: italic;">
                         <i class="fas fa-clock"></i> Last Updated: ${data.last_updated}
@@ -2275,44 +2229,54 @@ HTML_TEMPLATE = '''
 
         function displayFundamentals(data) {
             try {
-                const cont = document.getElementById('fundamentals');
-                cont.innerHTML = '<h3><i class="fas fa-building"></i> Fundamentals</h3>';
-                
-                function genTable(records, title, icon) {
-                    if (!records || !records.length) {
-                        return `<div style="margin: 15px 0;">
-                            <h4><i class="${icon}"></i> ${title}</h4>
-                            <p style="color: #7f8c8d; font-style: italic;">No data available</p>
-                        </div>`;
-                    }
-                    const cols = Object.keys(records[0]);
-                    let html = `<div style="margin: 15px 0;">
-                        <h4><i class="${icon}"></i> ${title}</h4>
-                        <div class="table-wrapper">
-                            <table class="comparison-table">
-                                <thead><tr>`;
-                    html += cols.map(c => `<th>${c}</th>`).join('');
-                    html += `</tr></thead><tbody>`;
-                    records.forEach(r => {
-                        html += '<tr>' + cols.map(c => `<td>${r[c] || 'N/A'}</td>`).join('') + '</tr>';
-                    });
-                    html += `</tbody></table></div></div>`;
-                    return html;
-                }
-                
-                cont.innerHTML += genTable(data.earnings, 'Annual Earnings', 'fas fa-calendar-alt');
-                cont.innerHTML += genTable(data.quarterlyEarnings, 'Quarterly Earnings', 'fas fa-chart-pie');
-                cont.innerHTML += genTable(data.balanceSheet.slice(0,1), 'Balance Sheet (Latest)', 'fas fa-balance-scale');
-                cont.innerHTML += genTable(data.financials.slice(0,1), 'Financials (Latest)', 'fas fa-dollar-sign');
-                cont.innerHTML += genTable(data.cashflow.slice(0,1), 'Cash Flow (Latest)', 'fas fa-money-bill-wave');
-                
-                logInfo('Fundamentals displayed successfully');
-            } catch (error) {
-                const errorMsg = `Error displaying fundamentals: ${error.message}`;
-                console.error(errorMsg);
-                displayError('fundamentals', errorMsg, 'fundamentals display');
-            }
+                    const cont = document.getElementById('fundamentals');
+    cont.innerHTML = '<h3><i class="fas fa-building"></i> Fundamentals</h3>';
+
+    function genTable(records, title, icon) {
+        if (!records || !records.length) {
+            return `<div style="margin:15px 0;">
+                <h4><i class="${icon}"></i> ${title}</h4>
+                <p style="color:#7f8c8d;font-style:italic;">No data available</p>
+            </div>`;
         }
+        const cols = Object.keys(records[0]);
+        let html = `<div style="margin:15px 0;">
+            <h4><i class="${icon}"></i> ${title}</h4>
+            <div class="table-wrapper">
+                <table class="comparison-table">
+                    <thead><tr>${cols.map(c=>`<th>${c}</th>`).join('')}</tr></thead>
+                    <tbody>${records.map(r=>
+                        `<tr>${cols.map(c=>`<td>${r[c] ?? 'N/A'}</td>`).join('')}</tr>`
+                    ).join('')}</tbody>
+                </table>
+            </div>
+        </div>`;
+        return html;
+    }
+        function wrapDetails(records, title, icon) {
+        const tableHtml = genTable(records);
+        return `
+          <details style="margin:15px 0;">
+            <summary style="font-weight:600; cursor:pointer;"><i class="${icon}"></i> ${title}</summary>
+            <div class="table-wrapper">${tableHtml}</div>
+          </details>
+        `;
+      }
+
+      // Drop Annual Earnings and Quarterly Earnings entirely
+      cont.innerHTML += wrapDetails(data.financials,           'Annual Financials (Income)',    'fas fa-file-invoice-dollar');
+      cont.innerHTML += wrapDetails(data.quarterlyFinancials,  'Quarterly Financials (Income)', 'fas fa-file-alt');
+      cont.innerHTML += wrapDetails(data.balanceSheet,          'Annual Balance Sheet',          'fas fa-balance-scale');
+      cont.innerHTML += wrapDetails(data.quarterlyBalanceSheet, 'Quarterly Balance Sheet',       'fas fa-scale-balanced');
+      cont.innerHTML += wrapDetails(data.cashflow,              'Annual Cash Flow',              'fas fa-money-bill-wave');
+      cont.innerHTML += wrapDetails(data.quarterlyCashflow,     'Quarterly Cash Flow',           'fas fa-coins');
+
+      console.log('Fundamentals displayed successfully');
+    } catch (error) {
+      console.error(`Error displaying fundamentals: ${error.message}`);
+      displayError('fundamentals', error.message, 'fundamentals display');
+    }
+  }
 
         function showError(message) {
             const stockInfo = document.getElementById('stockInfo');
@@ -2528,9 +2492,7 @@ if __name__ == '__main__':
         logger.info(f"📊 Found {len(sp500_tickers)} S&P 500 tickers")
         print(f"📊 Found {len(sp500_tickers)} S&P 500 tickers")
         
-        # =============================================================================
-        # PUSH NOTIFICATION CONFIGURATION
-        # =============================================================================
+        
         PUSHOVER_TOKEN = "an1pxdrmpsyfscpng5s3pg8c16qzxz"
         PUSHOVER_USER = "u3e6rkshozsnaookryxjdwwu5odk75"
         notification_system = setup_notifications(app, PUSHOVER_TOKEN, PUSHOVER_USER)
