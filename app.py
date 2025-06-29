@@ -44,6 +44,7 @@ import schedule
 import time
 import threading
 import sqlite3
+from openai import OpenAI
 
 #-----------------------------------------------------------------------------------------------------------
 
@@ -1086,12 +1087,80 @@ def setup_notifications(app, pushover_token=None, pushover_user=None):
     notification_system.start_scheduler()
     return notification_system
 
+# ─────────────────────────────────────────────────────────────--------------------------------------
+# ChatGPT Advice
+
+client = OpenAI(api_key="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") 
+
+@app.route('/ai_advice', methods=['POST'])
+def ai_advice():
+        try:
+            data = request.get_json() or {}
+            ticker = data.get('ticker')
+            if not ticker:
+                return jsonify({'error': 'Ticker not provided'}), 400
+
+            tk = yf.Ticker(ticker)
+            info = tk.info if getattr(tk, 'info', None) is not None else {}
+            metrics = {
+                '52W High': info.get('fiftyTwoWeekHigh'),
+                '52W Low': info.get('fiftyTwoWeekLow'),
+                'Beta': info.get('beta'),
+                'Dividend Yield': info.get('dividendYield'),
+                'EPS': info.get('trailingEps'),
+                'Forward P/E': info.get('forwardPE'),
+                'P/E Ratio': info.get('trailingPE'),
+                'Market Cap': info.get('marketCap'),
+                'Volume': info.get('volume')
+            }
+            # Retrieve financial DataFrames safely
+            ann_fin_df = tk.financials if getattr(tk, 'financials', None) is not None else pd.DataFrame()
+            q_fin_df = tk.quarterly_financials if getattr(tk, 'quarterly_financials', None) is not None else pd.DataFrame()
+            bs_df = tk.balance_sheet if getattr(tk, 'balance_sheet', None) is not None else pd.DataFrame()
+            cf_df = tk.cashflow if getattr(tk, 'cashflow', None) is not None else pd.DataFrame()
+            q_cf_df = tk.quarterly_cashflow if getattr(tk, 'quarterly_cashflow', None) is not None else pd.DataFrame()
+
+            fundamentals_data = {
+                'Annual Financials': df_to_records(ann_fin_df),
+                'Quarterly Financials': df_to_records(q_fin_df),
+                'Annual Balance Sheet': df_to_records(bs_df),
+                'Annual Cash Flow': df_to_records(cf_df),
+                'Quarterly Cash Flow': df_to_records(q_cf_df)
+            }
+
+            # Enhanced prompt with formatting instructions
+            system_msg = (
+                "You are an expert financial analyst. Analyze the following stock fundamental data and key metrics and striictly only use this data advise whether it's worth buying the stock and dertmine if its should be bought and sold in short term (1-5 days), mid term (1-4 weeks) or long term (6-12 months), "
+                "then format your response as follows: "
+                "1) Five bullet points (each 1-2 sentences) explaining why you made this decision. "
+                "2) A conclusion (1-2 sentences) summarizing your advice."
+            )
+            user_msg = (
+                f"Ticker: {ticker}\n"
+                f"Key Metrics: {json.dumps(metrics, default=str)}\n"
+                f"Fundamentals: {json.dumps(fundamentals_data, default=str)}"
+            )
+
+            response = client.chat.completions.create(
+                model="gpt-4-turbo",
+                messages=[
+                    {"role": "system", "content": system_msg},
+                    {"role": "user", "content": user_msg}
+                ],
+                temperature=0.7
+            )
+            advice = response.choices[0].message.content.strip()
+            return jsonify({'advice': advice})
+
+        except Exception as e:
+            logger.error(f"Error in AI Advice: {e}\n{traceback.format_exc()}")
+            return jsonify({'error': str(e)}), 500
 
 # =============================================================================
 # HTML & CSS Template
 # =============================================================================
 
-HTML_TEMPLATE = '''
+HTML_TEMPLATE = r'''
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1602,8 +1671,408 @@ HTML_TEMPLATE = '''
             .tabs {
                 flex-direction: column;
             }
+  .ai-advice-card {
+        background: rgba(255, 255, 255, 0.98);
+        backdrop-filter: blur(15px);
+        border-radius: 20px;
+        padding: 40px;
+        margin-top: 30px;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .ai-advice-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+        background: linear-gradient(90deg, #667eea, #764ba2, #667eea);
+        background-size: 200% 100%;
+        animation: shimmer 3s ease-in-out infinite;
+    }
+
+    .ai-advice-card-header {
+        text-align: center;
+        margin-bottom: 35px;
+    }
+
+    .ai-advice-card-title {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #2c3e50;
+        margin-bottom: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+    }
+
+    .ai-advice-card-subtitle {
+        color: #7f8c8d;
+        font-size: 1rem;
+        font-weight: 400;
+        max-width: 500px;
+        margin: 0 auto;
+        line-height: 1.5;
+    }
+
+    /* Enhanced Button Design - EXTRA LARGE & PREMIUM */
+    #aiAdviceBtn {
+        background: linear-gradient(145deg, #667eea 0%, #764ba2 30%, #8b5cf6 60%, #5a67d8 100%);
+        color: white;
+        border: none;
+        padding: 35px 80px;
+        font-size: 1.8rem;
+        font-weight: 800;
+        border-radius: 20px;
+        cursor: pointer;
+        box-shadow: 
+            0 15px 40px rgba(102, 126, 234, 0.5),
+            0 8px 20px rgba(118, 75, 162, 0.4),
+            0 3px 8px rgba(90, 103, 216, 0.3),
+            inset 0 2px 0 rgba(255, 255, 255, 0.3),
+            inset 0 -2px 0 rgba(0, 0, 0, 0.1);
+        transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        display: inline-flex;
+        align-items: center;
+        gap: 20px;
+        min-width: 450px;
+        justify-content: center;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+        position: relative;
+        overflow: hidden;
+        transform-style: preserve-3d;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    }
+
+    #aiAdviceBtn::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, 
+            transparent, 
+            rgba(255, 255, 255, 0.4), 
+            rgba(255, 255, 255, 0.6),
+            rgba(255, 255, 255, 0.4),
+            transparent
+        );
+        transition: left 0.8s ease;
+    }
+
+    #aiAdviceBtn::after {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 0;
+        height: 0;
+        background: radial-gradient(circle, rgba(255, 255, 255, 0.3) 0%, transparent 70%);
+        transform: translate(-50%, -50%);
+        transition: all 0.4s ease;
+        border-radius: 50%;
+    }
+
+    #aiAdviceBtn:hover::before {
+        left: 100%;
+    }
+
+    #aiAdviceBtn:hover::after {
+        width: 300px;
+        height: 300px;
+    }
+
+    #aiAdviceBtn:hover {
+        transform: translateY(-6px) scale(1.05);
+        box-shadow: 
+            0 20px 50px rgba(102, 126, 234, 0.6),
+            0 10px 30px rgba(118, 75, 162, 0.5),
+            0 5px 15px rgba(90, 103, 216, 0.4),
+            inset 0 2px 0 rgba(255, 255, 255, 0.4),
+            inset 0 -2px 0 rgba(0, 0, 0, 0.2);
+        background: linear-gradient(145deg, #5a67d8 0%, #6a4c93 30%, #7c3aed 60%, #4c51bf 100%);
+    }
+
+    #aiAdviceBtn:active {
+        transform: translateY(-3px) scale(1.03);
+        box-shadow: 
+            0 15px 35px rgba(102, 126, 234, 0.5),
+            0 8px 20px rgba(118, 75, 162, 0.4),
+            inset 0 3px 0 rgba(0, 0, 0, 0.2);
+    }
+
+    #aiAdviceBtn:disabled {
+        background: linear-gradient(145deg, #6c757d 0%, #495057 100%);
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: 0 8px 20px rgba(108, 117, 125, 0.3);
+        opacity: 0.7;
+    }
+
+    #aiAdviceBtn i {
+        font-size: 2rem;
+        filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.4));
+        animation: iconFloat 3s ease-in-out infinite;
+    }
+
+    /* Response Container */
+    .ai-response-container {
+        background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+        border-radius: 16px;
+        padding: 0;
+        margin-top: 30px;
+        border: 1px solid #e9ecef;
+        box-shadow: 
+            0 10px 30px rgba(0, 0, 0, 0.08),
+            inset 0 1px 0 rgba(255, 255, 255, 0.9);
+        position: relative;
+        overflow: hidden;
+        display: none;
+        animation: slideIn 0.5s ease-out;
+    }
+
+    .ai-response-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 20px 30px;
+        border-radius: 16px 16px 0 0;
+        position: relative;
+    }
+
+    .ai-response-header::after {
+        content: '';
+        position: absolute;
+        bottom: -10px;
+        left: 0;
+        right: 0;
+        height: 10px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        clip-path: polygon(0 0, 100% 0, 95% 100%, 5% 100%);
+    }
+
+    .ai-response-title {
+        font-size: 1.2rem;
+        font-weight: 600;
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .ai-response-title i {
+        font-size: 1.4rem;
+        filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
+    }
+
+    .ai-response-content {
+        padding: 30px;
+        color: #2c3e50;
+        font-size: 1rem;
+        line-height: 1.8;
+        background: white;
+    }
+
+    .ai-response-content p {
+        margin: 20px 0;
+    }
+
+    .ai-response-content strong {
+        color: #667eea;
+        font-weight: 600;
+    }
+
+    .ai-response-content ul {
+        padding-left: 25px;
+        margin: 20px 0;
+    }
+
+    .ai-response-content li {
+        margin: 12px 0;
+        position: relative;
+    }
+
+    .ai-response-content li::marker {
+        color: #667eea;
+        font-weight: bold;
+    }
+
+    /* Loading Animation */
+    .loading-animation {
+        text-align: center;
+        padding: 40px 30px;
+        background: white;
+    }
+
+    .loading-animation i {
+        font-size: 3rem;
+        margin-bottom: 20px;
+        color: #667eea;
+        animation: brainPulse 2s ease-in-out infinite;
+    }
+
+    .loading-animation p {
+        margin: 0;
+        font-weight: 600;
+        font-size: 1.1rem;
+        color: #2c3e50;
+    }
+
+    .loading-dots {
+        display: inline-block;
+        margin-left: 5px;
+        animation: dots 1.5s linear infinite;
+    }
+
+    /* Disclaimer */
+    .ai-disclaimer {
+        background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+        border: 1px solid #ffeb3b;
+        border-radius: 12px;
+        padding: 20px;
+        margin: 25px 30px 30px 30px;
+        color: #856404;
+        font-size: 0.9rem;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .ai-disclaimer::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: linear-gradient(90deg, #f39c12, #e67e22, #f39c12);
+        background-size: 200% 100%;
+        animation: shimmer 2s ease-in-out infinite;
+    }
+
+    .ai-disclaimer i {
+        margin-right: 8px;
+        color: #f39c12;
+        font-size: 1.1rem;
+    }
+
+    .ai-disclaimer strong {
+        color: #d68910;
+    }
+
+    /* Error Message */
+    .error-message {
+        background: linear-gradient(135deg, #fee 0%, #fdd 100%);
+        border: 1px solid #f5c6cb;
+        border-radius: 12px;
+        padding: 25px 30px;
+        color: #721c24;
+        text-align: center;
+        font-weight: 500;
+        margin: 20px 30px 30px 30px;
+    }
+
+    .error-message i {
+        margin-right: 12px;
+        font-size: 1.3rem;
+        color: #dc3545;
+    }
+
+    /* Animations */
+    @keyframes iconFloat {
+        0%, 100% { 
+            transform: translateY(0px) rotate(0deg); 
         }
-    </style>
+        25% { 
+            transform: translateY(-3px) rotate(-2deg); 
+        }
+        50% { 
+            transform: translateY(0px) rotate(0deg); 
+        }
+        75% { 
+            transform: translateY(-2px) rotate(2deg); 
+        }
+    }
+
+    @keyframes shimmer {
+        0%, 100% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+    }
+
+    @keyframes slideIn {
+        from { 
+            opacity: 0; 
+            transform: translateY(20px) scale(0.95); 
+        }
+        to { 
+            opacity: 1; 
+            transform: translateY(0) scale(1); 
+        }
+    }
+
+    @keyframes brainPulse {
+        0%, 100% { 
+            transform: scale(1); 
+            opacity: 1; 
+        }
+        50% { 
+            transform: scale(1.1); 
+            opacity: 0.8; 
+        }
+    }
+
+    @keyframes dots {
+        0%, 20% { content: ''; }
+        40% { content: '.'; }
+        60% { content: '..'; }
+        80%, 100% { content: '...'; }
+    }
+
+    /* Mobile responsiveness */
+    @media (max-width: 768px) {
+        .ai-advice-card {
+            padding: 25px;
+            margin-top: 20px;
+            border-radius: 16px;
+        }
+
+        #aiAdviceBtn {
+            padding: 25px 50px;
+            font-size: 1.5rem;
+            min-width: 350px;
+            letter-spacing: 1.5px;
+        }
+        
+        .ai-response-content {
+            padding: 20px;
+        }
+        
+        .ai-disclaimer {
+            margin: 20px 20px 25px 20px;
+            padding: 15px;
+        }
+        
+        .ai-advice-card-title {
+            font-size: 1.3rem;
+        }
+    }
+
+    @media (max-width: 480px) {
+        #aiAdviceBtn {
+            padding: 20px 35px;
+            font-size: 1.3rem;
+            min-width: 300px;
+            letter-spacing: 1px;
+        }
+    }
+</style>
 </head>
 <body>
     <div class="container">
@@ -2270,7 +2739,127 @@ HTML_TEMPLATE = '''
       cont.innerHTML += wrapDetails(data.quarterlyBalanceSheet, 'Quarterly Balance Sheet',       'fas fa-scale-balanced');
       cont.innerHTML += wrapDetails(data.cashflow,              'Annual Cash Flow',              'fas fa-money-bill-wave');
       cont.innerHTML += wrapDetails(data.quarterlyCashflow,     'Quarterly Cash Flow',           'fas fa-coins');
-
+      
+      // Append AI Advice button and output container
+                   cont.innerHTML += `
+            <div class="ai-advice-card">
+                <div class="ai-advice-card-header">
+                    <h4 class="ai-advice-card-title">
+                        <i class="fas fa-robot"></i>
+                        AI Investment Advisor
+                    </h4>
+                    <p class="ai-advice-card-subtitle">
+                        Get personalized investment analysis powered by advanced AI technology
+                    </p>
+                </div>
+                
+                <div style="text-align: center;">
+                    <button id="aiAdviceBtn">
+                        <i class="fas fa-brain"></i>
+                        Analyze Investment
+                    </button>
+                </div>
+                
+                <div id="aiAdviceOutput" class="ai-response-container"></div>
+            </div>
+        `;
+        document.getElementById('aiAdviceBtn').addEventListener('click', async () => {
+            const btn = document.getElementById('aiAdviceBtn');
+            const outputDiv = document.getElementById('aiAdviceOutput');
+            
+            try {
+                // Show loading state
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing Analysis<span class="loading-dots"></span>';
+                
+                // Show output container with enhanced loading animation
+                outputDiv.style.display = 'block';
+                outputDiv.innerHTML = `
+                    <div class="ai-response-header">
+                        <h5 class="ai-response-title">
+                            <i class="fas fa-cogs fa-spin"></i>
+                            AI Analysis in Progress
+                        </h5>
+                    </div>
+                    <div class="loading-animation">
+                        <i class="fas fa-brain"></i>
+                        <p>Analyzing ${selectedTicker} fundamentals, market data, and financial metrics<span class="loading-dots"></span></p>
+                    </div>
+                `;
+                
+                const resp = await fetch('/ai_advice', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ticker: selectedTicker })
+                });
+                
+                const result = await resp.json();
+                
+                if (result.error) {
+                    outputDiv.innerHTML = `
+                        <div class="ai-response-header">
+                            <h5 class="ai-response-title">
+                                <i class="fas fa-exclamation-triangle"></i>
+                                Analysis Error
+                            </h5>
+                        </div>
+                        <div class="error-message">
+                            <i class="fas fa-exclamation-circle"></i>
+                            <strong>Unable to complete analysis:</strong> ${result.error}
+                        </div>
+                    `;
+                } else {
+                    // Enhanced formatting with better typography
+                    let formattedAdvice = result.advice
+                        // Bold numbered points
+                        .replace(/(\d+\.\s)/g, '<strong>$1</strong>')
+                        // Bold text between **
+                        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                        // Convert bullet points to proper list items
+                        .replace(/\n\s*[-•]\s*(.*?)(?=\n|$)/g, '<li>$1</li>')
+                        // Handle paragraph breaks
+                        .replace(/\n\n/g, '</p><p>')
+                        // Handle line breaks
+                        .replace(/\n/g, '<br>');
+                    
+                    // Wrap consecutive list items in ul tags
+                    formattedAdvice = formattedAdvice.replace(/(<li>.*?<\/li>)(?:\s*<li>.*?<\/li>)*/g, '<ul>$&</ul>');
+                    
+                    outputDiv.innerHTML = `
+                        <div class="ai-response-header">
+                            <h5 class="ai-response-title">
+                                <i class="fas fa-chart-line"></i>
+                                Investment Analysis for ${selectedTicker}
+                            </h5>
+                        </div>
+                        <div class="ai-response-content">
+                            <p>${formattedAdvice}</p>
+                        </div>
+                        <div class="ai-disclaimer">
+                            <i class="fas fa-info-circle"></i>
+                            <strong>Important Disclaimer:</strong> This AI-generated analysis is for informational purposes only and should not be considered as professional financial advice. Always consult with a qualified financial advisor and conduct your own research before making investment decisions. Past performance does not guarantee future results.
+                        </div>
+                    `;
+                }
+            } catch (err) {
+                outputDiv.innerHTML = `
+                    <div class="ai-response-header">
+                        <h5 class="ai-response-title">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            Connection Error
+                        </h5>
+                    </div>
+                    <div class="error-message">
+                        <i class="fas fa-wifi"></i>
+                        <strong>Request failed:</strong> ${err.message}. Please check your connection and try again.
+                    </div>
+                `;
+            } finally {
+                // Reset button state
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-brain"></i> Analyze Investment';
+            }
+        });
       console.log('Fundamentals displayed successfully');
     } catch (error) {
       console.error(`Error displaying fundamentals: ${error.message}`);
