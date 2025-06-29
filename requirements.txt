@@ -17,3 +17,4 @@ mplfinance
 robin-stocks
 pyotp
 schwab-py
+openai
