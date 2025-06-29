@@ -18,3 +18,4 @@ robin-stocks
 pyotp
 schwab-py
 openai
+boto3
