@@ -605,21 +605,21 @@ def technical_indicators(ticker):
         # === MACD optimized for day trading: fast=5, slow=35, signal=5 ===
         macd = MACD(
             close=df['Close'],
-            window_fast=5,
-            window_slow=35,
-            window_sign=5
+            window_fast=10,
+            window_slow=20,
+            window_sign=7
         )
         df['macd']        = macd.macd()
         df['macd_signal'] = macd.macd_signal()
 
         # === RSI optimized for day trading: window=7 ===
-        rsi = RSIIndicator(close=df['Close'], window=7)
+        rsi = RSIIndicator(close=df['Close'], window=14)
         df['rsi'] = rsi.rsi()
 
         # === SMAs optimized for day trading: 5 & 13 periods ===
-        sma_s = SMAIndicator(close=df['Close'], window=5)
+        sma_s = SMAIndicator(close=df['Close'], window=10)
         df['ma_short'] = sma_s.sma_indicator()
-        sma_l = SMAIndicator(close=df['Close'], window=13)
+        sma_l = SMAIndicator(close=df['Close'], window=20)
         df['ma_long']  = sma_l.sma_indicator()
 
         # === Stochastic Oscillator optimized: %K=9, %D=3 ===
@@ -627,7 +627,7 @@ def technical_indicators(ticker):
             high=df['High'],
             low=df['Low'],
             close=df['Close'],
-            window=9,
+            window=14,
             smooth_window=3
         )
         df['stoch_k'] = sto.stoch()
@@ -636,8 +636,8 @@ def technical_indicators(ticker):
         # === Bollinger Bands optimized: 10-period SMA, 1.5 std dev ===
         bb = BollingerBands(
             close=df['Close'],
-            window=10,
-            window_dev=1.5
+            window=20,
+            window_dev=2
         )
         df['bb_middle'] = bb.bollinger_mavg()
         df['bb_upper']  = bb.bollinger_hband()
@@ -2566,50 +2566,52 @@ HTML_TEMPLATE = r'''
         }
 
         function populateComparisonTable(data, days) {
-            try {
-                const tableBody = document.getElementById('tableBody');
-                tableBody.innerHTML = '';
-                const startIdx = data.dates.length - days;
-                
-                for (let i = startIdx; i < data.dates.length; i++) {
-                    const date = data.dates[i];
-                    const vol = data.volume[i];
-                    const actual = data.actual[i];
-                    const pred = data.predicted[i];
-                    const diff = pred - actual;
-                    const pctErr = (diff / actual) * 100;
-                    const absErr = Math.abs(pctErr);
-                    
-                    let accClass, accText;
-                    if (absErr <= 2) { 
-                        accClass='accuracy-high'; accText='High'; 
-                    } else if (absErr <= 5) { 
-                        accClass='accuracy-medium'; accText='Medium'; 
-                    } else { 
-                        accClass='accuracy-low'; accText='Low'; 
-                    }
-                    
-                    const diffClass = diff >= 0 ? 'difference-positive' : 'difference-negative';
-                    const sign = diff >= 0 ? '+' : '';
-                    
-                    tableBody.innerHTML += 
-                        `<tr>
-                            <td>${date}</td>
-                            <td>${vol.toLocaleString()}</td>
-                            <td class="price-cell">${actual.toFixed(2)}</td>
-                            <td class="price-cell">${pred.toFixed(2)}</td>
-                            <td class="${diffClass}">${sign}${diff.toFixed(2)}</td>
-                            <td class="${diffClass}">${sign}${pctErr.toFixed(2)}%</td>
-                            <td><span class="${accClass}">${accText}</span></td>
-                        </tr>`;
-                }
-                logInfo('Comparison table populated successfully');
-            } catch (error) {
-                const errorMsg = `Error populating comparison table: ${error.message}`;
-                console.error(errorMsg);
-                displayError('tableBody', errorMsg, 'comparison table population');
+    try {
+        const tableBody = document.getElementById('tableBody');
+        tableBody.innerHTML = '';
+        const startIdx = data.dates.length - days;
+        
+        // Iterate from newest to oldest so latest dates appear at the top
+        for (let i = data.dates.length - 1; i >= startIdx; i--) {
+            const date = data.dates[i];
+            const vol = data.volume[i];
+            const actual = data.actual[i];
+            const pred = data.predicted[i];
+            const diff = pred - actual;
+            const pctErr = (diff / actual) * 100;
+            const absErr = Math.abs(pctErr);
+            
+            let accClass, accText;
+            if (absErr <= 2) { 
+                accClass = 'accuracy-high'; accText = 'High'; 
+            } else if (absErr <= 5) { 
+                accClass = 'accuracy-medium'; accText = 'Medium'; 
+            } else { 
+                accClass = 'accuracy-low'; accText = 'Low'; 
             }
+            
+            const diffClass = diff >= 0 ? 'difference-positive' : 'difference-negative';
+            const sign = diff >= 0 ? '+' : '';
+            
+            tableBody.innerHTML += `
+                <tr>
+                    <td>${date}</td>
+                    <td>${vol.toLocaleString()}</td>
+                    <td class="price-cell">${actual.toFixed(2)}</td>
+                    <td class="price-cell">${pred.toFixed(2)}</td>
+                    <td class="${diffClass}">${sign}${diff.toFixed(2)}</td>
+                    <td class="${diffClass}">${sign}${pctErr.toFixed(2)}%</td>
+                    <td><span class="${accClass}">${accText}</span></td>
+                </tr>
+            `;
         }
+        logInfo('Comparison table populated successfully');
+    } catch (error) {
+        const errorMsg = `Error populating comparison table: ${error.message}`;
+        console.error(errorMsg);
+        displayError('tableBody', errorMsg, 'comparison table population');
+    }
+}
 
         async function fetchSignals(ticker) {
             try {
