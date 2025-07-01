@@ -20,3 +20,4 @@ schwab-py
 openai
 boto3
 pandas_ta
+ta
